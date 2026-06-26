@@ -242,6 +242,14 @@ These skills are designed as **atomic, cross-referencing units**. A skill may re
 
 See [EVALUATIONS.md](./EVALUATIONS.md) for the full per-skill breakdown.
 
+For the stdlib-first governance branch, run:
+
+```bash
+python scripts/validate-governance.py --base-ref origin/main
+```
+
+This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`.
+
 ## 📖 Skills description
 
 ### Code Quality
