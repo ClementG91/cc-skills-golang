@@ -246,9 +246,10 @@ For the stdlib-first governance branch, run:
 
 ```bash
 python scripts/validate-governance.py --base-ref origin/main
+python scripts/audit-evaluations.py
 ```
 
-This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`.
+This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`. The evaluation audit validates the existing evaluation artifacts and intentionally exits non-zero when published scores no longer match current `evals.json` files or when coverage/confidence issues are detected.
 
 ## 📖 Skills description
 
