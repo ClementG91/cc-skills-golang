@@ -269,6 +269,38 @@ def call_anthropic(model: str, system_prompt: str, user_prompt: str, max_tokens:
     raise ProviderError(f"Anthropic response did not contain text: {data}")
 
 
+def call_gemini(model: str, system_prompt: str, user_prompt: str, max_tokens: int, timeout: int) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ProviderError("GEMINI_API_KEY is not set")
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "generationConfig": {
+            "temperature": 0,
+            "maxOutputTokens": max_tokens,
+        },
+    }
+    data = request_json(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        {
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json",
+        },
+        payload,
+        timeout,
+    )
+    fragments: list[str] = []
+    for candidate in data.get("candidates", []):
+        content = candidate.get("content", {})
+        for part in content.get("parts", []):
+            if "text" in part:
+                fragments.append(str(part["text"]))
+    if fragments:
+        return "\n".join(fragments)
+    raise ProviderError(f"Gemini response did not contain text: {data}")
+
+
 def call_provider(
     provider: str,
     model: str,
@@ -281,6 +313,8 @@ def call_provider(
         return call_openai(model, system_prompt, user_prompt, max_tokens, timeout)
     if provider == "anthropic":
         return call_anthropic(model, system_prompt, user_prompt, max_tokens, timeout)
+    if provider == "gemini":
+        return call_gemini(model, system_prompt, user_prompt, max_tokens, timeout)
     raise ProviderError(f"unsupported provider: {provider}")
 
 
@@ -611,11 +645,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skills", default="", help="Comma-separated skill names. Default: all skills with evals.")
     parser.add_argument("--eval-ids", default="", help="Comma-separated eval ids or names to run.")
     parser.add_argument("--limit", type=int, default=None, help="Limit selected eval cases after filtering.")
-    parser.add_argument("--provider", choices=["openai", "anthropic"], default=os.environ.get("EVAL_PROVIDER", "openai"))
+    parser.add_argument(
+        "--provider",
+        choices=["openai", "anthropic", "gemini"],
+        default=os.environ.get("EVAL_PROVIDER", "openai"),
+    )
     parser.add_argument("--model", default=os.environ.get("EVAL_MODEL", "gpt-4.1"))
     parser.add_argument(
         "--judge-provider",
-        choices=["openai", "anthropic"],
+        choices=["openai", "anthropic", "gemini"],
         default=os.environ.get("EVAL_JUDGE_PROVIDER", os.environ.get("EVAL_PROVIDER", "openai")),
     )
     parser.add_argument("--judge-model", default=os.environ.get("EVAL_JUDGE_MODEL", "gpt-4.1"))

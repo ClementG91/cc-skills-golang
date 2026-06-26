@@ -11,6 +11,7 @@ on:
         options:
           - openai
           - anthropic
+          - gemini
       model:
         description: "Generation model"
         required: true
@@ -24,6 +25,7 @@ on:
         options:
           - openai
           - anthropic
+          - gemini
       judge_model:
         description: "Blind judge model"
         required: true
@@ -89,6 +91,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PROVIDER: ${{ inputs.provider }}
           JUDGE_PROVIDER: ${{ inputs.judge_provider }}
         run: |
@@ -98,11 +101,15 @@ jobs:
           if [ "$PROVIDER" = "anthropic" ] || [ "$JUDGE_PROVIDER" = "anthropic" ]; then
             test -n "$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY secret is required"; exit 1; }
           fi
+          if [ "$PROVIDER" = "gemini" ] || [ "$JUDGE_PROVIDER" = "gemini" ]; then
+            test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY secret is required"; exit 1; }
+          fi
 
       - name: Run LLM evaluation harness
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
           args=(

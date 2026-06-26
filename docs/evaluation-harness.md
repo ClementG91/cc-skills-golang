@@ -35,6 +35,10 @@ For Anthropic runs, configure:
 
 - `ANTHROPIC_API_KEY`
 
+For Gemini runs, configure:
+
+- `GEMINI_API_KEY`
+
 The workflow supports using one provider for generation and another provider for judging.
 
 ## Local Smoke Test
@@ -79,6 +83,23 @@ python scripts/run-llm-evaluations.py \
   --fail-on-errors
 ```
 
+Example Gemini free-tier smoke run:
+
+```bash
+export GEMINI_API_KEY=...
+python scripts/run-llm-evaluations.py \
+  --provider gemini \
+  --model gemini-2.5-flash \
+  --judge-provider gemini \
+  --judge-model gemini-2.5-flash \
+  --skills golang-samber-lo \
+  --limit 2 \
+  --context-mode skill-only \
+  --fail-on-errors
+```
+
+Do not publish Gemini free-tier results as Codex or Claude results. Use them to prove the harness, CI, artifacts, and blind judging flow works at low or zero cost.
+
 ## CI Usage
 
 Use the `LLM Evaluations` workflow manually from GitHub Actions.
@@ -92,12 +113,38 @@ Recommended first run:
 Recommended real smoke run:
 
 - `dry_run`: `false`
+- `provider`: `gemini`
+- `model`: `gemini-2.5-flash`
+- `judge_provider`: `gemini`
+- `judge_model`: `gemini-2.5-flash`
 - `skills`: `golang-samber-lo`
 - `limit`: `2`
 - `context_mode`: `skill-only`
 - `max_workers`: `1`
 
 Run full suites only when cost is acceptable. The harness writes full transcripts and judge rationales as workflow artifacts.
+
+## GitHub Secret Setup
+
+Never commit API keys. Store them as repository secrets.
+
+With the GitHub CLI:
+
+```bash
+gh secret set GEMINI_API_KEY --repo ClementG91/cc-skills-golang
+```
+
+Paste the key into the hidden prompt when `gh` asks for it.
+
+Or use the GitHub web UI:
+
+1. Open the fork on GitHub.
+2. Go to `Settings` -> `Secrets and variables` -> `Actions`.
+3. Select `New repository secret`.
+4. Name it `GEMINI_API_KEY`.
+5. Paste the key and save.
+
+If a key was pasted into chat, rotate it from the provider console before using it for longer-lived automation.
 
 ## Context Modes
 
