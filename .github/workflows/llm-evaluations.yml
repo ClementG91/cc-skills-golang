@@ -1,0 +1,178 @@
+name: LLM Evaluations
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Generation provider"
+        required: true
+        default: "openai"
+        type: choice
+        options:
+          - openai
+          - anthropic
+          - gemini
+      model:
+        description: "Generation model"
+        required: true
+        default: "gpt-4.1"
+        type: string
+      judge_provider:
+        description: "Blind judge provider"
+        required: true
+        default: "openai"
+        type: choice
+        options:
+          - openai
+          - anthropic
+          - gemini
+      judge_model:
+        description: "Blind judge model"
+        required: true
+        default: "gpt-4.1"
+        type: string
+      skills:
+        description: "Comma-separated skills, empty means all skills with evals"
+        required: false
+        default: ""
+        type: string
+      limit:
+        description: "Limit selected evals for smoke/cost control, empty means all"
+        required: false
+        default: ""
+        type: string
+      context_mode:
+        description: "Skill context loading mode"
+        required: true
+        default: "skill-only"
+        type: choice
+        options:
+          - skill-only
+          - skill-with-references
+      max_workers:
+        description: "Parallel eval workers"
+        required: true
+        default: "1"
+        type: string
+      repetitions:
+        description: "Repeated generations per eval and variant"
+        required: true
+        default: "1"
+        type: string
+      min_judge_confidence:
+        description: "Mark judge decisions below this confidence as unknown"
+        required: true
+        default: "0"
+        type: string
+      calibration_sample_size:
+        description: "Blinded human calibration sample size"
+        required: true
+        default: "0"
+        type: string
+      min_delta_pp:
+        description: "Fail if with-skill uplift is below this delta, empty disables"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Validate harness without API calls"
+        required: true
+        default: false
+        type: boolean
+      fail_on_errors:
+        description: "Fail when provider or judge errors occur"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  llm-evaluations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile harness
+        run: python -m py_compile scripts/run-llm-evaluations.py
+
+      - name: Check provider secret
+        if: ${{ inputs.dry_run == false }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          JUDGE_PROVIDER: ${{ inputs.judge_provider }}
+        run: |
+          if [ "$PROVIDER" = "openai" ] || [ "$JUDGE_PROVIDER" = "openai" ]; then
+            test -n "$OPENAI_API_KEY" || { echo "OPENAI_API_KEY secret is required"; exit 1; }
+          fi
+          if [ "$PROVIDER" = "anthropic" ] || [ "$JUDGE_PROVIDER" = "anthropic" ]; then
+            test -n "$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY secret is required"; exit 1; }
+          fi
+          if [ "$PROVIDER" = "gemini" ] || [ "$JUDGE_PROVIDER" = "gemini" ]; then
+            test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY secret is required"; exit 1; }
+          fi
+
+      - name: Run LLM evaluation harness
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          JUDGE_PROVIDER: ${{ inputs.judge_provider }}
+          JUDGE_MODEL: ${{ inputs.judge_model }}
+          CONTEXT_MODE: ${{ inputs.context_mode }}
+          MAX_WORKERS: ${{ inputs.max_workers }}
+          REPETITIONS: ${{ inputs.repetitions }}
+          MIN_JUDGE_CONFIDENCE: ${{ inputs.min_judge_confidence }}
+          CALIBRATION_SAMPLE_SIZE: ${{ inputs.calibration_sample_size }}
+          SKILLS: ${{ inputs.skills }}
+          LIMIT: ${{ inputs.limit }}
+          MIN_DELTA_PP: ${{ inputs.min_delta_pp }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FAIL_ON_ERRORS: ${{ inputs.fail_on_errors }}
+        run: |
+          set -euo pipefail
+          args=(
+            --provider "$PROVIDER"
+            --model "$MODEL"
+            --judge-provider "$JUDGE_PROVIDER"
+            --judge-model "$JUDGE_MODEL"
+            --context-mode "$CONTEXT_MODE"
+            --max-workers "$MAX_WORKERS"
+            --repetitions "$REPETITIONS"
+            --min-judge-confidence "$MIN_JUDGE_CONFIDENCE"
+            --calibration-sample-size "$CALIBRATION_SAMPLE_SIZE"
+            --output-dir artifacts/evaluations
+          )
+          if [ -n "$SKILLS" ]; then
+            args+=(--skills "$SKILLS")
+          fi
+          if [ -n "$LIMIT" ]; then
+            args+=(--limit "$LIMIT")
+          fi
+          if [ -n "$MIN_DELTA_PP" ]; then
+            args+=(--min-delta-pp "$MIN_DELTA_PP")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          if [ "$FAIL_ON_ERRORS" = "true" ]; then
+            args+=(--fail-on-errors)
+          fi
+          python scripts/run-llm-evaluations.py "${args[@]}"
+
+      - name: Upload LLM evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-evaluations
+          path: artifacts/evaluations

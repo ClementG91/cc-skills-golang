@@ -15,7 +15,12 @@ permissions:
 
 jobs:
   snyk-agent-scan:
-    if: github.event_name != 'schedule' || github.repository_owner == 'samber'
+    # Skip scheduled runs on forks, and never execute MCP servers from
+    # untrusted fork pull requests (--dangerously-run-mcp-servers runs PR code).
+    if: >-
+      (github.event_name != 'schedule' || github.repository_owner == 'samber') &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,6 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
 
       - name: Run Snyk Agent Scan
-        run: uvx snyk-agent-scan@latest --ci --dangerously-run-mcp-servers --skills ./skills
+        # Pin the tool version (no @latest) so a new release can't change behavior unreviewed.
+        run: uvx snyk-agent-scan==0.5.12 --ci --dangerously-run-mcp-servers --skills ./skills
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

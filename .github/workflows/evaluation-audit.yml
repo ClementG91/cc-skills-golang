@@ -1,0 +1,65 @@
+name: Evaluation Audit
+
+on:
+  push:
+    branches: [main, stdlib-first-governance]
+    paths:
+      - "EVALUATIONS.md"
+      - "README.md"
+      - "skills/**"
+      - "scripts/**"
+      - ".github/workflows/evaluation-audit.yml"
+  pull_request:
+    paths:
+      - "EVALUATIONS.md"
+      - "README.md"
+      - "skills/**"
+      - "scripts/**"
+      - ".github/workflows/evaluation-audit.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile evaluation scripts
+        run: |
+          python -m py_compile \
+            scripts/audit-evaluations.py \
+            scripts/validate-governance.py \
+            scripts/run-llm-evaluations.py
+
+      - name: Validate governance guardrails
+        run: python scripts/validate-governance.py --base-ref origin/main
+
+      - name: Audit published evaluation artifacts
+        id: audit
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/evaluation-audit
+          python scripts/audit-evaluations.py | tee artifacts/evaluation-audit/audit.txt
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-audit
+          path: artifacts/evaluation-audit
+
+      - name: Explain non-blocking audit
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "The deterministic audit found stale or low-confidence published evaluation data."
+          echo "This job is intentionally non-blocking until the repository has regenerated, reproducible scores."
+          echo "Inspect the evaluation-audit artifact for details."

@@ -140,14 +140,14 @@ These skills are designed as **atomic, cross-referencing units**. A skill may re
 ┌──────────────┐ ┌──────────────┐ ┌─────────────────┐ ┌──────────────────┐
 │ Code Quality │ │ Arch & Design│ │    QA & Perf    │ │  Project Start   │
 ├──────────────┤ ├──────────────┤ ├─────────────────┤ ├──────────────────┤
-│ code-style   │ │ design-patt  │ │ testing         │ │ project-layout   │
-│ naming       │ │ concurrency  │ │ benchmark       │ │ popular-libs     │
-│ error-handl  │ │ context      │ │ performance     │ │ cli              │
-│ safety       │ │ dep-inject   │ │ troubleshoot    │ │ CI               │
-│ structs-iface│ │ data-structs │ │ observability   │ │ stay-updated     │
-│ documentation│ │ database     │ │                 │ │ dep-management   │
-│ lint         │ │ modernize    │ │                 │ │                  │
-│ security     │ │              │ │                 │ │                  │
+│ code-style   │ │ arch-govern  │ │ testing         │ │ project-layout   │
+│ naming       │ │ design-patt  │ │ benchmark       │ │ popular-libs     │
+│ error-handl  │ │ concurrency  │ │ performance     │ │ cli              │
+│ safety       │ │ context      │ │ troubleshoot    │ │ CI               │
+│ structs-iface│ │ dep-inject   │ │ observability   │ │ stay-updated     │
+│ documentation│ │ data-structs │ │                 │ │ dep-management   │
+│ lint         │ │ database     │ │                 │ │                  │
+│ security     │ │ modernize    │ │                 │ │                  │
 └──────────────┘ └──────────────┘ └─────────────────┘ └──────────────────┘
 
     ┌─────────────────────────────────────────────────────────────────────────┐
@@ -184,6 +184,7 @@ These skills are designed as **atomic, cross-referencing units**. A skill may re
 |  | Skill | Flags | Error rate gap | Description (tok) | SKILL.md (tok) | Directory (tok) |
 | --- | --- | --- | --- | --- | --- | --- |
 | ⭐️ | ✅ `golang-code-style` | ⚡ ⚙️ | -40% | 115 | 2,069 | 2,685 |
+| ⭐️ | ✅ `golang-architecture-governance` | ⚡ ⚙️ | — | 122 | 1,720 | 1,720 |
 | ⭐️ | ✅ `golang-data-structures` | ⚡ | -39% | 92 | 2,497 | 6,216 |
 | ⭐️ | ✅ `golang-database` | ⚡ ⚙️ | -38% | 97 | 2,725 | 7,248 |
 | ⭐️ | ✅ `golang-design-patterns` | ⚡ ⚙️ | -37% | 66 | 2,610 | 9,316 |
@@ -242,6 +243,27 @@ These skills are designed as **atomic, cross-referencing units**. A skill may re
 
 See [EVALUATIONS.md](./EVALUATIONS.md) for the full per-skill breakdown.
 
+> [!NOTE]
+> Read these numbers with their limits in mind. Pass/fail is decided by an
+> LLM-as-judge, and the harness default judges with the **same provider/model
+> that generated the answer** (self-judging), so per-skill deltas — especially
+> the small ones — carry judge bias; a few skills are human- or self-graded.
+> Several `evals.json` suites have also grown since the table was last
+> regenerated, so the published per-skill counts currently lag the repo and
+> `scripts/audit-evaluations.py` exits non-zero by design until a fresh harness
+> run reconciles them. Treat the headline figures as directional, not exact,
+> until regenerated with a third-party judge.
+
+For the stdlib-first governance branch, run:
+
+```bash
+python scripts/validate-governance.py --base-ref origin/main
+python scripts/audit-evaluations.py
+python scripts/run-llm-evaluations.py --dry-run --skills golang-samber-lo --limit 1
+```
+
+This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`. The evaluation audit validates the existing evaluation artifacts and intentionally exits non-zero when published scores no longer match current `evals.json` files or when coverage/confidence issues are detected. The LLM harness runs fresh with-skill versus without-skill model calls when provider API keys are configured. Use Gemini free-tier smoke runs to validate the harness at low or zero cost, then use Codex/OpenAI or Claude models for publishable provider-specific claims. See [Evaluation Harness](./docs/evaluation-harness.md) for methodology, calibration, and source references.
+
 ## 📖 Skills description
 
 ### Code Quality
@@ -279,6 +301,10 @@ Go security best practices. Injection prevention (SQL, command, XSS), cryptograp
 Go struct and interface design. Composition, embedding, type assertions, interface segregation, struct tags (JSON/YAML/DB), pointer vs value receivers. Overridable.
 
 ### Architecture & Design
+
+#### `golang-architecture-governance`
+
+Architecture governance for Go agent workflows. Requires an RFC-style design proposal and human sign-off before creating services, changing package boundaries, adding infrastructure, changing database access/pooling, introducing multi-tenancy, or adopting major dependencies/frameworks. Prioritizes stdlib-first choices, resource limits, security, supply-chain review, and locked execution after approval. Overridable.
 
 #### `golang-concurrency`
 
@@ -399,6 +425,8 @@ CLI command trees with spf13/cobra. Command hierarchy, RunE hooks, flag manageme
 Layered configuration with spf13/viper. Flag > env > file > KV > default precedence, BindPFlag, hot reload, test isolation, and remote KV integration.
 
 ### samber/\*
+
+These skills document samber libraries when a project already uses them, when the user explicitly asks for them, or when an approved design decision chooses them. They are not intended to override the repository's stdlib-first guidance: for architectural dependency choices, use `golang-architecture-governance` and require human sign-off before implementation.
 
 #### `golang-samber-do`
 
