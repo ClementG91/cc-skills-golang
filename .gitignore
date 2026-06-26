@@ -1,3 +1,5 @@
 /*-workspace/
 .worktrees/
 .claude/worktrees/
+artifacts/
+scripts/__pycache__/

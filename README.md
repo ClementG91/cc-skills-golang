@@ -247,9 +247,10 @@ For the stdlib-first governance branch, run:
 ```bash
 python scripts/validate-governance.py --base-ref origin/main
 python scripts/audit-evaluations.py
+python scripts/run-llm-evaluations.py --dry-run --skills golang-samber-lo --limit 1
 ```
 
-This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`. The evaluation audit validates the existing evaluation artifacts and intentionally exits non-zero when published scores no longer match current `evals.json` files or when coverage/confidence issues are detected.
+This deterministic check validates the governance guardrails and reports before/after metrics for `samber/*` trigger tightening. It does not replace the LLM-as-judge evaluations in `EVALUATIONS.md`. The evaluation audit validates the existing evaluation artifacts and intentionally exits non-zero when published scores no longer match current `evals.json` files or when coverage/confidence issues are detected. The LLM harness runs fresh with-skill versus without-skill model calls when provider API keys are configured. See [Evaluation Harness](./docs/evaluation-harness.md).
 
 ## 📖 Skills description
 

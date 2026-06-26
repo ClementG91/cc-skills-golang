@@ -1,0 +1,139 @@
+name: LLM Evaluations
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Generation provider"
+        required: true
+        default: "openai"
+        type: choice
+        options:
+          - openai
+          - anthropic
+      model:
+        description: "Generation model"
+        required: true
+        default: "gpt-4.1"
+        type: string
+      judge_provider:
+        description: "Blind judge provider"
+        required: true
+        default: "openai"
+        type: choice
+        options:
+          - openai
+          - anthropic
+      judge_model:
+        description: "Blind judge model"
+        required: true
+        default: "gpt-4.1"
+        type: string
+      skills:
+        description: "Comma-separated skills, empty means all skills with evals"
+        required: false
+        default: ""
+        type: string
+      limit:
+        description: "Limit selected evals for smoke/cost control, empty means all"
+        required: false
+        default: ""
+        type: string
+      context_mode:
+        description: "Skill context loading mode"
+        required: true
+        default: "skill-only"
+        type: choice
+        options:
+          - skill-only
+          - skill-with-references
+      max_workers:
+        description: "Parallel eval workers"
+        required: true
+        default: "1"
+        type: string
+      min_delta_pp:
+        description: "Fail if with-skill uplift is below this delta, empty disables"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Validate harness without API calls"
+        required: true
+        default: false
+        type: boolean
+      fail_on_errors:
+        description: "Fail when provider or judge errors occur"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  llm-evaluations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile harness
+        run: python -m py_compile scripts/run-llm-evaluations.py
+
+      - name: Check provider secret
+        if: ${{ inputs.dry_run == false }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          JUDGE_PROVIDER: ${{ inputs.judge_provider }}
+        run: |
+          if [ "$PROVIDER" = "openai" ] || [ "$JUDGE_PROVIDER" = "openai" ]; then
+            test -n "$OPENAI_API_KEY" || { echo "OPENAI_API_KEY secret is required"; exit 1; }
+          fi
+          if [ "$PROVIDER" = "anthropic" ] || [ "$JUDGE_PROVIDER" = "anthropic" ]; then
+            test -n "$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY secret is required"; exit 1; }
+          fi
+
+      - name: Run LLM evaluation harness
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          args=(
+            --provider "${{ inputs.provider }}"
+            --model "${{ inputs.model }}"
+            --judge-provider "${{ inputs.judge_provider }}"
+            --judge-model "${{ inputs.judge_model }}"
+            --context-mode "${{ inputs.context_mode }}"
+            --max-workers "${{ inputs.max_workers }}"
+            --output-dir artifacts/evaluations
+          )
+          if [ -n "${{ inputs.skills }}" ]; then
+            args+=(--skills "${{ inputs.skills }}")
+          fi
+          if [ -n "${{ inputs.limit }}" ]; then
+            args+=(--limit "${{ inputs.limit }}")
+          fi
+          if [ -n "${{ inputs.min_delta_pp }}" ]; then
+            args+=(--min-delta-pp "${{ inputs.min_delta_pp }}")
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          if [ "${{ inputs.fail_on_errors }}" = "true" ]; then
+            args+=(--fail-on-errors)
+          fi
+          python scripts/run-llm-evaluations.py "${args[@]}"
+
+      - name: Upload LLM evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-evaluations
+          path: artifacts/evaluations
