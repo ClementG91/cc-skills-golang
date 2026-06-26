@@ -204,17 +204,48 @@ def load_skill_context(root: Path, skill: str, context_mode: str) -> str:
     return "\n".join(parts)
 
 
+RETRYABLE_STATUS = {429, 500, 502, 503}
+MAX_RETRIES = int(os.environ.get("EVAL_MAX_RETRIES", "5"))
+MAX_RETRY_WAIT_SECONDS = float(os.environ.get("EVAL_MAX_RETRY_WAIT_SECONDS", "65"))
+
+
+def parse_retry_after(header_value: str | None, message: str) -> float | None:
+    """Best-effort retry delay from a Retry-After header or a provider message."""
+    if header_value:
+        try:
+            return float(header_value)
+        except ValueError:
+            pass
+    # Gemini reports e.g. "retryDelay": "41s" or "retry in 41.79s".
+    match = re.search(r'retry(?:Delay)?["\s:in]+\s*"?(\d+(?:\.\d+)?)s', message)
+    if match:
+        return float(match.group(1))
+    return None
+
+
 def request_json(url: str, headers: dict[str, str], payload: dict[str, Any], timeout: int) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        message = exc.read().decode("utf-8", errors="replace")
-        raise ProviderError(f"HTTP {exc.code}: {message}") from exc
-    except urllib.error.URLError as exc:
-        raise ProviderError(str(exc)) from exc
+    last_error: Exception | None = None
+    for attempt in range(MAX_RETRIES + 1):
+        request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            message = exc.read().decode("utf-8", errors="replace")
+            last_error = ProviderError(f"HTTP {exc.code}: {message}")
+            if exc.code not in RETRYABLE_STATUS or attempt == MAX_RETRIES:
+                raise last_error from exc
+            hinted = parse_retry_after(exc.headers.get("Retry-After"), message)
+            backoff = min(2.0 ** attempt, MAX_RETRY_WAIT_SECONDS)
+            wait = min(hinted if hinted is not None else backoff, MAX_RETRY_WAIT_SECONDS)
+            time.sleep(wait + random.uniform(0, 0.5))
+        except urllib.error.URLError as exc:
+            last_error = ProviderError(str(exc))
+            if attempt == MAX_RETRIES:
+                raise last_error from exc
+            time.sleep(min(2.0 ** attempt, MAX_RETRY_WAIT_SECONDS))
+    raise last_error if last_error else ProviderError("request failed")
 
 
 def call_openai(model: str, system_prompt: str, user_prompt: str, max_tokens: int, timeout: int) -> str:
