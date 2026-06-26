@@ -1,0 +1,170 @@
+[
+  {
+    "id": 1,
+    "name": "use-godig-not-memory",
+    "description": "Tests that for a Go package API question the model uses the godig pkg.go.dev client rather than answering from (potentially stale) training memory",
+    "prompt": "What does the github.com/samber/lo Map function's signature look like in the latest version, and how do I use it? I need the exact current signature, not a guess.",
+    "trap": "A skill-less model answers the signature from memory, which may be outdated or wrong, instead of verifying it against pkg.go.dev",
+    "assertions": [
+      {"id": "1.1", "text": "Uses godig to look up the symbol rather than answering purely from memory"},
+      {"id": "1.2", "text": "Uses the godig 'symbol doc' command (e.g. godig symbol doc github.com/samber/lo Map) rather than fetching the whole package doc"},
+      {"id": "1.3", "text": "Passes the full import path github.com/samber/lo as the positional argument"},
+      {"id": "1.4", "text": "Passes -o md so the result renders as Markdown in chat"},
+      {"id": "1.5", "text": "Does not invent or assert a signature without sourcing it from pkg.go.dev/godig"}
+    ]
+  },
+  {
+    "id": 2,
+    "name": "start-with-overview",
+    "description": "Tests that the model starts with the compact 'overview' command for a general package summary instead of pulling large per-facet output",
+    "prompt": "Give me a quick rundown of the github.com/samber/ro module — what is the latest version, what license is it under, and does it have any obvious problems? Keep it compact.",
+    "trap": "A skill-less model issues several separate heavyweight calls (module info + versions + licenses + vulns) or fetches large doc/readme output when one compact overview call suffices",
+    "assertions": [
+      {"id": "2.1", "text": "Uses the godig 'overview' command as the starting point (e.g. godig overview github.com/samber/ro)"},
+      {"id": "2.2", "text": "Notes that overview returns a compact summary including metadata, latest/recent versions, license types, and vulnerabilities in a single call"},
+      {"id": "2.3", "text": "Does NOT pull a LARGE command (package doc, module readme, or licenses full text) for this compact summary"},
+      {"id": "2.4", "text": "Uses -o md for the output"},
+      {"id": "2.5", "text": "Passes the full import path github.com/samber/ro as the positional argument"}
+    ]
+  },
+  {
+    "id": 3,
+    "name": "check-vulnerabilities",
+    "description": "Tests that the model uses godig vulns to check for known CVEs/vulnerabilities rather than guessing or relying on memory",
+    "prompt": "Before I add github.com/dgrijalva/jwt-go to my Go project, I want to know whether it has any known security vulnerabilities. How do I check?",
+    "trap": "A skill-less model claims a package is safe/unsafe from memory, or directs the user to manually browse a website, instead of querying the vuln database via godig",
+    "assertions": [
+      {"id": "3.1", "text": "Uses the godig 'vulns' command (e.g. godig vulns github.com/dgrijalva/jwt-go) to check for known vulnerabilities"},
+      {"id": "3.2", "text": "Notes that the data comes from pkg.go.dev (the Go vulnerability database), not from the model's memory"},
+      {"id": "3.3", "text": "Notes that vulns returns an empty list when a module has no known vulnerabilities"},
+      {"id": "3.4", "text": "Uses -o md for the output"},
+      {"id": "3.5", "text": "Does not assert a definitive vulnerability verdict without sourcing it from godig/pkg.go.dev"}
+    ]
+  },
+  {
+    "id": 4,
+    "name": "list-available-versions",
+    "description": "Tests that the model uses godig versions (newest-first) to enumerate available module versions instead of guessing",
+    "prompt": "What versions of github.com/samber/lo are available, and which is the newest? I want to see the actual published versions.",
+    "trap": "A skill-less model lists version numbers from memory or suggests running `go list -m -versions`, instead of querying pkg.go.dev via godig versions",
+    "assertions": [
+      {"id": "4.1", "text": "Uses the godig 'versions' command (e.g. godig versions github.com/samber/lo) to list available versions"},
+      {"id": "4.2", "text": "Notes that versions are returned newest-first"},
+      {"id": "4.3", "text": "Mentions that the listing auto-paginates (returns all results) and that --limit can cap the output"},
+      {"id": "4.4", "text": "Uses -o md for the output"},
+      {"id": "4.5", "text": "Does not enumerate specific version numbers purely from memory"}
+    ]
+  },
+  {
+    "id": 5,
+    "name": "filter-syntax-symbols",
+    "description": "Tests correct use of the --filter Go boolean expression to narrow list results server-side, including correct field names and capitalized kind values",
+    "prompt": "From github.com/samber/lo, I only want the exported functions whose names start with \"Map\". How do I list just those with godig?",
+    "trap": "A skill-less model passes a regex, uses a lowercase kind value like 'func', or filters client-side; it does not know --filter takes a Go boolean expression with capitalized kind values and string functions like hasPrefix",
+    "assertions": [
+      {"id": "5.1", "text": "Uses the godig 'symbols' command with a --filter expression (e.g. godig symbols github.com/samber/lo --filter '...')"},
+      {"id": "5.2", "text": "Filters on kind using the capitalized value \"Function\" (e.g. kind==\"Function\"), not a lowercase value like 'func'"},
+      {"id": "5.3", "text": "Uses the hasPrefix(name, \"Map\") string function for the name-prefix condition rather than a regex"},
+      {"id": "5.4", "text": "Combines the two conditions with the && operator"},
+      {"id": "5.5", "text": "Wraps the whole filter expression in single quotes for the shell"},
+      {"id": "5.6", "text": "Treats --filter as a Go boolean expression evaluated server-side, not as a regex"}
+    ]
+  },
+  {
+    "id": 6,
+    "name": "who-imports-package",
+    "description": "Tests that the model uses godig imported-by to find packages that import a target, rather than suggesting a code/GitHub search",
+    "prompt": "I want to see which Go packages import github.com/samber/ro, so I can gauge how it's used in the wild. How do I find that?",
+    "trap": "A skill-less model suggests GitHub code search, grep.app, or sourcegraph, unaware that pkg.go.dev exposes importers directly via godig imported-by",
+    "assertions": [
+      {"id": "6.1", "text": "Uses the godig 'imported-by' command (e.g. godig imported-by github.com/samber/ro) to list importing packages"},
+      {"id": "6.2", "text": "Notes that --limit can cap the number of results returned"},
+      {"id": "6.3", "text": "Uses -o md for the output"},
+      {"id": "6.4", "text": "Does not primarily recommend an external tool (GitHub search, Sourcegraph, grep.app) instead of godig for this"}
+    ]
+  },
+  {
+    "id": 7,
+    "name": "prefer-godig-over-context7",
+    "description": "Tests that for Go package docs the model prefers godig/pkg.go.dev over Context7 or generic web docs",
+    "prompt": "I need the documentation for the Go package github.com/samber/lo to understand its API. I usually use Context7 for library docs — should I use that here?",
+    "trap": "A skill-less model defaults to Context7 or a generic doc fetch for the Go package, instead of preferring the pkg.go.dev-backed godig client",
+    "assertions": [
+      {"id": "7.1", "text": "Recommends using godig (pkg.go.dev) for the Go package documentation"},
+      {"id": "7.2", "text": "States a preference for godig over Context7 for Go packages/modules specifically"},
+      {"id": "7.3", "text": "Shows a concrete godig command to get the docs (e.g. godig package doc or godig symbol doc for github.com/samber/lo)"},
+      {"id": "7.4", "text": "Uses -o md (or notes -o md renders the docs as Markdown in chat)"}
+    ]
+  },
+  {
+    "id": 8,
+    "name": "symbol-doc-over-package-doc",
+    "description": "Tests that the model scopes documentation to a single symbol when only one symbol is needed, rather than pulling the entire (LARGE) package doc",
+    "prompt": "I only need to understand the OopsError.Error method from github.com/samber/oops — just that one method's signature and runnable example. How do I look it up efficiently?",
+    "trap": "A skill-less model fetches the entire package doc/examples (LARGE, token-heavy) when a single-symbol lookup would suffice",
+    "assertions": [
+      {"id": "8.1", "text": "Uses 'symbol doc' for the one symbol's signature/doc (e.g. godig symbol doc github.com/samber/oops OopsError.Error)"},
+      {"id": "8.2", "text": "Uses 'symbol examples' for that symbol's runnable example (e.g. godig symbol examples github.com/samber/oops OopsError.Error)"},
+      {"id": "8.3", "text": "Explicitly avoids the package-wide 'package doc'/'package examples' commands, noting they are LARGE/token-heavy"},
+      {"id": "8.4", "text": "Notes that the single-symbol commands are more token-efficient than the package-wide ones"},
+      {"id": "8.5", "text": "Uses -o md for the output"}
+    ]
+  },
+  {
+    "id": 9,
+    "name": "parallelize-independent-lookups",
+    "description": "Tests that the model parallelizes independent read-only godig lookups instead of running them sequentially, and dispatches sub-agents for large fan-outs",
+    "prompt": "I'm evaluating three Go libraries — github.com/samber/lo, github.com/samber/mo, and github.com/samber/do. For each, I want the overview, the latest version, and any known vulnerabilities. What's the most efficient way to gather all this with godig?",
+    "trap": "A skill-less model runs the godig calls one at a time (sequentially), unaware that the calls are independent read-only HTTP queries that should be issued in parallel, and that large fan-outs should use sub-agents",
+    "assertions": [
+      {"id": "9.1", "text": "Notes that godig commands are independent, self-contained, read-only HTTP queries that do not depend on each other"},
+      {"id": "9.2", "text": "Issues the lookups in parallel (multiple godig invocations in a single turn) rather than sequentially"},
+      {"id": "9.3", "text": "Explains the benefit: wall-clock time drops to the slowest single call rather than the sum of all latencies"},
+      {"id": "9.4", "text": "Suggests dispatching parallel sub-agents (via the Agent tool, up to 5) for a large fan-out so LARGE raw output stays out of the main context"},
+      {"id": "9.5", "text": "Uses the 'overview' command for the per-library summary and 'vulns' for vulnerabilities"}
+    ]
+  },
+  {
+    "id": 10,
+    "name": "pin-version-build-context",
+    "description": "Tests use of --version to pin a specific module version and --goos/--goarch to set the documentation build context",
+    "prompt": "I'm pinned to github.com/samber/lo v1.50.0 (not latest) and my target platform is Linux on amd64. How do I get the package docs for exactly that version and build context with godig?",
+    "trap": "A skill-less model fetches the latest docs with no version pin and ignores the build-context flags, giving docs that may not match the user's pinned version or platform",
+    "assertions": [
+      {"id": "10.1", "text": "Uses --version v1.50.0 to pin the specific module version"},
+      {"id": "10.2", "text": "Uses --goos linux to set the OS build context"},
+      {"id": "10.3", "text": "Uses --goarch amd64 to set the architecture build context"},
+      {"id": "10.4", "text": "Uses a godig doc command (package doc or symbol doc) for github.com/samber/lo"},
+      {"id": "10.5", "text": "Uses -o md for the output"}
+    ]
+  },
+  {
+    "id": 11,
+    "name": "search-by-exported-symbol",
+    "description": "Tests using godig search (optionally with --symbol) to discover packages, including correct search-specific filter fields",
+    "prompt": "I want to find Go packages that deal with result/option monad types — ideally ones under the github.com/samber/ org. How do I discover candidates with godig?",
+    "trap": "A skill-less model suggests a generic web/Google search, or uses a wrong filter field name (e.g. 'path' instead of 'packagePath') for the search command",
+    "assertions": [
+      {"id": "11.1", "text": "Uses the godig 'search' command with a query (e.g. godig search \"result option monad\")"},
+      {"id": "11.2", "text": "Restricts to the org using --filter with the search-specific field packagePath (e.g. hasPrefix(packagePath, \"github.com/samber/\")), not 'path'"},
+      {"id": "11.3", "text": "Mentions --limit to cap the number of results"},
+      {"id": "11.4", "text": "Notes that --symbol can search for packages exporting a particular symbol"},
+      {"id": "11.5", "text": "Uses -o md for the output"}
+    ]
+  },
+  {
+    "id": 12,
+    "name": "module-licenses-and-deps",
+    "description": "Tests using the correct godig commands for license verification and dependency inspection rather than reading files manually",
+    "prompt": "For github.com/samber/ro I need two things: (1) confirm its exact license, and (2) see its direct go.mod dependencies including any replace directives. How do I get both with godig?",
+    "trap": "A skill-less model suggests cloning the repo and reading LICENSE/go.mod by hand, or conflates the LARGE full-license-text command with the compact license-type info",
+    "assertions": [
+      {"id": "12.1", "text": "Notes that 'overview' already reports the license type(s) compactly, or uses 'module licenses' for the full license text"},
+      {"id": "12.2", "text": "Acknowledges that 'module licenses' (or 'package licenses') returns the full license text and is a LARGE command"},
+      {"id": "12.3", "text": "Uses the godig 'dependencies' command (e.g. godig dependencies github.com/samber/ro) for the go.mod dependencies"},
+      {"id": "12.4", "text": "Notes that 'dependencies' covers requires / replaces / excludes / the go directive (including replace directives)"},
+      {"id": "12.5", "text": "Uses -o md for the output"},
+      {"id": "12.6", "text": "Does not primarily recommend cloning the repo to read LICENSE/go.mod files manually"}
+    ]
+  }
+]

@@ -125,33 +125,47 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          JUDGE_PROVIDER: ${{ inputs.judge_provider }}
+          JUDGE_MODEL: ${{ inputs.judge_model }}
+          CONTEXT_MODE: ${{ inputs.context_mode }}
+          MAX_WORKERS: ${{ inputs.max_workers }}
+          REPETITIONS: ${{ inputs.repetitions }}
+          MIN_JUDGE_CONFIDENCE: ${{ inputs.min_judge_confidence }}
+          CALIBRATION_SAMPLE_SIZE: ${{ inputs.calibration_sample_size }}
+          SKILLS: ${{ inputs.skills }}
+          LIMIT: ${{ inputs.limit }}
+          MIN_DELTA_PP: ${{ inputs.min_delta_pp }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FAIL_ON_ERRORS: ${{ inputs.fail_on_errors }}
         run: |
           set -euo pipefail
           args=(
-            --provider "${{ inputs.provider }}"
-            --model "${{ inputs.model }}"
-            --judge-provider "${{ inputs.judge_provider }}"
-            --judge-model "${{ inputs.judge_model }}"
-            --context-mode "${{ inputs.context_mode }}"
-            --max-workers "${{ inputs.max_workers }}"
-            --repetitions "${{ inputs.repetitions }}"
-            --min-judge-confidence "${{ inputs.min_judge_confidence }}"
-            --calibration-sample-size "${{ inputs.calibration_sample_size }}"
+            --provider "$PROVIDER"
+            --model "$MODEL"
+            --judge-provider "$JUDGE_PROVIDER"
+            --judge-model "$JUDGE_MODEL"
+            --context-mode "$CONTEXT_MODE"
+            --max-workers "$MAX_WORKERS"
+            --repetitions "$REPETITIONS"
+            --min-judge-confidence "$MIN_JUDGE_CONFIDENCE"
+            --calibration-sample-size "$CALIBRATION_SAMPLE_SIZE"
             --output-dir artifacts/evaluations
           )
-          if [ -n "${{ inputs.skills }}" ]; then
-            args+=(--skills "${{ inputs.skills }}")
+          if [ -n "$SKILLS" ]; then
+            args+=(--skills "$SKILLS")
           fi
-          if [ -n "${{ inputs.limit }}" ]; then
-            args+=(--limit "${{ inputs.limit }}")
+          if [ -n "$LIMIT" ]; then
+            args+=(--limit "$LIMIT")
           fi
-          if [ -n "${{ inputs.min_delta_pp }}" ]; then
-            args+=(--min-delta-pp "${{ inputs.min_delta_pp }}")
+          if [ -n "$MIN_DELTA_PP" ]; then
+            args+=(--min-delta-pp "$MIN_DELTA_PP")
           fi
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)
           fi
-          if [ "${{ inputs.fail_on_errors }}" = "true" ]; then
+          if [ "$FAIL_ON_ERRORS" = "true" ]; then
             args+=(--fail-on-errors)
           fi
           python scripts/run-llm-evaluations.py "${args[@]}"

@@ -1,0 +1,163 @@
+[
+  {
+    "id": 1,
+    "name": "grpc-loads-multiple-skills",
+    "description": "Tests the core orchestration rule: a gRPC task loads the primary skill PLUS its applicable secondary skills together, not a single skill",
+    "prompt": "I'm about to build a gRPC service in Go. Before I write any code, which of the samber/cc-skills-golang skills should be loaded for this task, and which is primary?",
+    "trap": "A naive model treats this as a single-skill task (just gRPC) or skips skill routing entirely and starts writing gRPC code, missing that testing and error-handling secondaries must load at the same time",
+    "assertions": [
+      {"id": "1.1", "text": "Names golang-grpc as the primary skill"},
+      {"id": "1.2", "text": "Names golang-testing as a secondary skill to also load"},
+      {"id": "1.3", "text": "Names golang-error-handling as a secondary skill to also load"},
+      {"id": "1.4", "text": "States that the primary and secondary skills should be loaded together / at the start, not one at a time"},
+      {"id": "1.5", "text": "Does NOT jump straight into writing gRPC implementation code instead of identifying skills"}
+    ]
+  },
+  {
+    "id": 2,
+    "name": "new-project-layout-routing",
+    "description": "Tests routing for setting up a new project structure, including its multiple secondary skills",
+    "prompt": "I'm starting a brand-new Go project from scratch and want to set up the directory/project structure correctly. Which Go skills apply?",
+    "trap": "A naive model recommends a generic layout (e.g. golang-standards/project-layout) from memory without identifying golang-project-layout as primary or its DI/lint/design-pattern secondaries",
+    "assertions": [
+      {"id": "2.1", "text": "Names golang-project-layout as the primary skill"},
+      {"id": "2.2", "text": "Names golang-design-patterns as a skill to also load"},
+      {"id": "2.3", "text": "Names golang-dependency-injection as a skill to also load"},
+      {"id": "2.4", "text": "Names golang-lint as a skill to also load"},
+      {"id": "2.5", "text": "Loads multiple skills together rather than treating project setup as a single-skill task"}
+    ]
+  },
+  {
+    "id": 3,
+    "name": "performance-cluster-disambiguation",
+    "description": "Tests the performance-cluster boundary: measure first with benchmark, fix with performance, root-cause with troubleshooting",
+    "prompt": "My Go HTTP handler is slow in production and I'm not sure why. I want to make it faster. Which Go skill owns this, and what's the right order to bring skills in?",
+    "trap": "A naive model immediately suggests optimizations (sync.Pool, caching, fewer allocations) without measuring, conflating measurement, optimization, and root-cause into one undifferentiated 'performance' answer",
+    "assertions": [
+      {"id": "3.1", "text": "Distinguishes measurement (golang-benchmark) from optimization (golang-performance)"},
+      {"id": "3.2", "text": "Says to measure/profile first (golang-benchmark) before applying optimization patterns"},
+      {"id": "3.3", "text": "Attributes optimization patterns to golang-performance"},
+      {"id": "3.4", "text": "For a production slowness symptom, brings in golang-observability (metrics/traces) and/or golang-troubleshooting for root cause"},
+      {"id": "3.5", "text": "Does NOT recommend specific optimizations as the first step before any measurement"}
+    ]
+  },
+  {
+    "id": 4,
+    "name": "safety-vs-security-boundary",
+    "description": "Tests the correctness-vs-threat boundary: nil-pointer panic is golang-safety (internal bug), not golang-security (external threat)",
+    "prompt": "My Go service keeps panicking with a nil pointer dereference under certain inputs. Is this a security issue? Which Go skill should I load to address it?",
+    "trap": "A naive model may label a nil-pointer panic a security vulnerability and route it to security tooling, instead of recognizing it as an internal correctness bug owned by golang-safety",
+    "assertions": [
+      {"id": "4.1", "text": "Routes the nil pointer panic to golang-safety as the owning skill"},
+      {"id": "4.2", "text": "Explains golang-safety covers internal correctness bugs (nil panics, etc.) while golang-security covers external threats (injection, crypto, secrets)"},
+      {"id": "4.3", "text": "Does NOT classify a nil pointer dereference as a security vulnerability owned by golang-security"},
+      {"id": "4.4", "text": "May also bring in golang-troubleshooting to debug the existing crash"}
+    ]
+  },
+  {
+    "id": 5,
+    "name": "math-rand-token-security",
+    "description": "Tests routing a predictable-randomness token issue to golang-security (external threat), not golang-safety",
+    "prompt": "I'm generating session tokens in my Go app using math/rand. Is that fine? Which Go skill covers this?",
+    "trap": "A naive model may say math/rand is fine or treat it as a correctness/safety concern, missing that predictable randomness is an external-threat issue owned by golang-security (use crypto/rand)",
+    "assertions": [
+      {"id": "5.1", "text": "Routes the issue to golang-security"},
+      {"id": "5.2", "text": "Identifies that math/rand produces predictable output and is unsafe for tokens"},
+      {"id": "5.3", "text": "Recommends crypto/rand instead of math/rand"},
+      {"id": "5.4", "text": "Frames this as an external threat (security) rather than an internal correctness bug (safety)"}
+    ]
+  },
+  {
+    "id": 6,
+    "name": "di-cluster-lifecycle-routing",
+    "description": "Tests the DI cluster boundary: lifecycle hooks route to uber-fx, not the lower-level uber-dig",
+    "prompt": "I'm adding dependency injection to my Go service and I need lifecycle hooks (start/stop) managed by the DI container. Which DI skill should I use?",
+    "trap": "A naive model picks dig or wire generically, not knowing fx is the lifecycle framework built on top of dig and is the correct choice when lifecycle hooks are required",
+    "assertions": [
+      {"id": "6.1", "text": "Recommends golang-uber-fx for lifecycle hooks"},
+      {"id": "6.2", "text": "Distinguishes uber-fx (lifecycle framework) from uber-dig (lower-level runtime reflection container)"},
+      {"id": "6.3", "text": "Notes that golang-dependency-injection is where to start for the library-selection decision"},
+      {"id": "6.4", "text": "Does NOT recommend google-wire for the lifecycle-hooks requirement"}
+    ]
+  },
+  {
+    "id": 7,
+    "name": "samber-functional-cluster",
+    "description": "Tests the samber/* functional cluster boundary: finite slice transform = lo, optional value without nil = mo, event stream = ro",
+    "prompt": "Two separate questions for my Go code using the samber libraries: (1) I want to transform a slice of users into a map keyed by ID. (2) I want to return an optional value without using nil. Which samber skill/helper for each?",
+    "trap": "A naive model conflates the three samber libraries or invents helpers, instead of routing finite transforms to lo (lo.KeyBy) and optional-without-nil to mo (mo.Option)",
+    "assertions": [
+      {"id": "7.1", "text": "Routes the slice-to-map transform to golang-samber-lo"},
+      {"id": "7.2", "text": "References lo.KeyBy (or lo.Associate/lo.SliceToMap) for the keyed-map transform"},
+      {"id": "7.3", "text": "Routes the optional-without-nil case to golang-samber-mo"},
+      {"id": "7.4", "text": "References mo.Option (mo.Some/mo.None) for the optional value"},
+      {"id": "7.5", "text": "Does NOT route the optional value to golang-samber-lo or golang-samber-ro"}
+    ]
+  },
+  {
+    "id": 8,
+    "name": "package-lookup-vs-management",
+    "description": "Tests the package-discovery cluster: looking up versions/CVEs of an existing path is golang-pkg-go-dev, not dependency-management or general web search",
+    "prompt": "I want to know what versions of github.com/samber/lo exist and whether any of them have known CVEs. How should I find this out in the samber Go skill ecosystem?",
+    "trap": "A naive model suggests a generic web search or running go list / go get, missing that golang-pkg-go-dev is the dedicated read-only lookup layer for versions, docs, importers, and CVEs of an existing path",
+    "assertions": [
+      {"id": "8.1", "text": "Routes the lookup to golang-pkg-go-dev"},
+      {"id": "8.2", "text": "Identifies pkg-go-dev as the read-only fact-lookup layer for an existing import path (versions, docs, importers, CVEs)"},
+      {"id": "8.3", "text": "Distinguishes pkg-go-dev (look up facts) from golang-dependency-management (edit go.mod / upgrade) and golang-security (whole-tree govulncheck scan)"},
+      {"id": "8.4", "text": "Does NOT recommend Context7 or a generic web search as the primary way to look up the Go package facts"}
+    ]
+  },
+  {
+    "id": 9,
+    "name": "cli-from-scratch-three-skills",
+    "description": "Tests that building a CLI from scratch loads the architecture, command-tree, and config-layering skills together",
+    "prompt": "I'm building a new Go CLI from scratch. It will have a tree of subcommands and needs to read config from flags, env vars, and a config file. Which Go skills should I load?",
+    "trap": "A naive model just suggests cobra and starts writing commands, missing the CLI-architecture skill (exit codes, signals, stdio) and the viper config-layering skill, and not loading the cluster together",
+    "assertions": [
+      {"id": "9.1", "text": "Names golang-cli for CLI architecture (exit codes, signal handling, stdio)"},
+      {"id": "9.2", "text": "Names golang-spf13-cobra for the command tree / subcommands"},
+      {"id": "9.3", "text": "Names golang-spf13-viper for layering config from flags, env, and file"},
+      {"id": "9.4", "text": "Loads all three skills together rather than only suggesting cobra"}
+    ]
+  },
+  {
+    "id": 10,
+    "name": "configure-mode-required-block",
+    "description": "Tests Configure mode mechanics: add a '## Required Go skills' block with fully-qualified identifiers to the project agent config file",
+    "prompt": "On my team we want golang-security and golang-testing to ALWAYS load for our Go repo, not just when someone mentions them. How do I force-trigger these skills for the whole project?",
+    "trap": "A naive model suggests adding a vague note to a README or relying on prompt phrasing, instead of using Configure mode to add a structured '## Required Go skills' block to CLAUDE.md/AGENTS.md with fully-qualified skill IDs",
+    "assertions": [
+      {"id": "10.1", "text": "Adds a section titled '## Required Go skills' to the project's agent config file"},
+      {"id": "10.2", "text": "Targets CLAUDE.md and/or AGENTS.md (the project agent config) as the file to edit"},
+      {"id": "10.3", "text": "Uses fully-qualified identifiers like samber/cc-skills-golang@golang-security and samber/cc-skills-golang@golang-testing"},
+      {"id": "10.4", "text": "States the block makes the listed skills always load regardless of whether the user mentions them"},
+      {"id": "10.5", "text": "Checks for / preserves idempotency (does not duplicate an existing block) or mentions the startup token cost of always-loaded skills"}
+    ]
+  },
+  {
+    "id": 11,
+    "name": "structs-interfaces-vs-design-patterns",
+    "description": "Tests the type-vs-architecture gap: pointer-vs-value receiver is golang-structs-interfaces; functional options / middleware is golang-design-patterns",
+    "prompt": "Two design questions for my Go API: (1) Should this method use a value or pointer receiver? (2) How do I implement the functional options pattern for my constructor? Which skill owns each?",
+    "trap": "A naive model treats both as one 'design' topic and answers from memory, instead of splitting low-level type mechanics (structs-interfaces) from architectural patterns (design-patterns)",
+    "assertions": [
+      {"id": "11.1", "text": "Routes the value-vs-pointer receiver question to golang-structs-interfaces"},
+      {"id": "11.2", "text": "Routes the functional options pattern to golang-design-patterns"},
+      {"id": "11.3", "text": "Explains the boundary: structs-interfaces owns low-level type mechanics; design-patterns owns architectural patterns"},
+      {"id": "11.4", "text": "May also reference golang-naming for the constructor name"}
+    ]
+  },
+  {
+    "id": 12,
+    "name": "cancel-goroutine-load-both",
+    "description": "Tests the goroutine-vs-cancel overlap: cancelling goroutines via context loads BOTH golang-concurrency and golang-context",
+    "prompt": "I have a worker goroutine and I want to cancel it from the outside when a request is aborted. Which Go skill covers this — concurrency or context?",
+    "trap": "A naive model picks only one of the two skills, missing that this overlap case requires loading both (context owns the cancel API, concurrency owns the goroutine select-on-Done coordination)",
+    "assertions": [
+      {"id": "12.1", "text": "Says to load BOTH golang-concurrency and golang-context, not just one"},
+      {"id": "12.2", "text": "Attributes the context cancellation API (context.WithCancel / ctx.Done) to golang-context"},
+      {"id": "12.3", "text": "Attributes the goroutine coordination (select on ctx.Done() in the worker) to golang-concurrency"},
+      {"id": "12.4", "text": "Does NOT claim a single skill exclusively owns the entire cancel-a-goroutine task"}
+    ]
+  }
+]

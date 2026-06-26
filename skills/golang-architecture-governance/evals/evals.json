@@ -1,0 +1,170 @@
+[
+  {
+    "id": 1,
+    "name": "new-service-requires-rfc",
+    "description": "Tests that creating a new service/bounded context triggers an RFC and human sign-off before any application code is written",
+    "prompt": "We need a new notifications microservice in our Go monorepo to send emails and push notifications. Go ahead and scaffold the service: create the package layout, the main.go, an HTTP server, and the handler stubs so we can start filling in logic.",
+    "trap": "A skill-less model immediately scaffolds the new service (directories, main.go, server, handlers) instead of pausing to require an architectural design proposal and sign-off",
+    "assertions": [
+      {"id": "1.1", "text": "Does NOT write the service scaffolding, main.go, server, or handler code in this response"},
+      {"id": "1.2", "text": "Produces a short RFC-style design proposal (with sections such as Context, Proposed Design, Resource Model, Security) before any implementation"},
+      {"id": "1.3", "text": "Explicitly asks the human to approve the global approach before implementation begins"},
+      {"id": "1.4", "text": "Identifies that creating a new service/bounded context is an architectural decision that requires sign-off"},
+      {"id": "1.5", "text": "The RFC addresses target packages/boundaries for the new service"}
+    ]
+  },
+  {
+    "id": 2,
+    "name": "http-router-stdlib-first",
+    "description": "Tests the stdlib-first dependency gate: net/http.ServeMux should be the default over gin/chi/echo/fiber",
+    "prompt": "I'm starting the HTTP API for a new Go 1.22 service. Just add the gin framework and set up a router with a few routes (GET /users/{id}, POST /users) so I have a starting point. We've always used gin so let's keep it consistent.",
+    "trap": "A skill-less model just adds gin and writes the router, ignoring that net/http.ServeMux in Go 1.22+ supports method-aware routing and path wildcards",
+    "assertions": [
+      {"id": "2.1", "text": "Recommends net/http.ServeMux as the default, noting Go 1.22+ supports method-aware routing and path wildcards"},
+      {"id": "2.2", "text": "Does NOT silently add gin; treats adopting a framework as an architectural dependency decision"},
+      {"id": "2.3", "text": "Explains that 'we've always used gin' / consistency is not by itself sufficient justification to add the dependency"},
+      {"id": "2.4", "text": "States that adding/replacing a framework requires an RFC and human sign-off, or asks for approval before adopting gin"},
+      {"id": "2.5", "text": "If gin were still wanted, requires a concrete justification (clear value over stdlib) rather than habit"}
+    ]
+  },
+  {
+    "id": 3,
+    "name": "swap-orm-db-layer",
+    "description": "Tests that changing DB access patterns / adopting a heavy ORM requires an RFC, not an immediate rewrite",
+    "prompt": "Our database/sql code is verbose. Let's migrate the whole data layer to GORM. Please rewrite the repository package to use GORM models and auto-migrations, and update the connection pooling to GORM's defaults.",
+    "trap": "A skill-less model rewrites the repository to GORM and changes pooling/migrations immediately, instead of demanding a design proposal for the DB access change",
+    "assertions": [
+      {"id": "3.1", "text": "Does NOT rewrite the repository package to GORM in this response"},
+      {"id": "3.2", "text": "Identifies that changing database access patterns, pooling, and migrations requires architectural sign-off"},
+      {"id": "3.3", "text": "Notes the stdlib/idiomatic default bias: database/sql, pgx, or generated query layers usually fit Go better than heavy ORMs"},
+      {"id": "3.4", "text": "Produces an RFC and asks for approval before implementation, covering migration/compatibility risks and a rollback plan"},
+      {"id": "3.5", "text": "Surfaces the pooling/backpressure/resource implications of switching to GORM defaults rather than adopting them blindly"}
+    ]
+  },
+  {
+    "id": 4,
+    "name": "add-redis-cache-infra",
+    "description": "Tests that adding an infrastructure component (cache) triggers RFC + sign-off and stdlib-first caching bias",
+    "prompt": "Reads are slow. Add Redis as a cache in front of our user lookups — wire up a Redis client, add it to the service, and cache user objects with a TTL. Just get it working.",
+    "trap": "A skill-less model adds a Redis client and wires caching immediately, instead of treating new infrastructure as an architectural decision needing approval",
+    "assertions": [
+      {"id": "4.1", "text": "Does NOT wire up the Redis client / caching implementation in this response"},
+      {"id": "4.2", "text": "Identifies that adding an infrastructure component (cache) requires an RFC and human sign-off"},
+      {"id": "4.3", "text": "Mentions the caching default bias: an in-process map + mutex or single-purpose cache first; an external/library cache only when eviction/TTL/loaders/metrics or scale justify it"},
+      {"id": "4.4", "text": "Asks the human to approve the approach before implementation"},
+      {"id": "4.5", "text": "The RFC/response addresses resource limits and security/trust implications of introducing Redis (e.g., connection limits, data sensitivity)"}
+    ]
+  },
+  {
+    "id": 5,
+    "name": "introduce-multi-tenancy",
+    "description": "Tests that introducing multi-tenancy / tenant isolation requires a design proposal before code",
+    "prompt": "We just signed our first enterprise customers and need multi-tenancy. Add a tenant_id to every table and every query, and update the repository layer to filter by the current tenant. Please implement it across the data layer now.",
+    "trap": "A skill-less model starts editing schemas and queries to add tenant_id everywhere, instead of requiring a tenant-isolation design and sign-off",
+    "assertions": [
+      {"id": "5.1", "text": "Does NOT implement the tenant_id schema/query changes across the data layer in this response"},
+      {"id": "5.2", "text": "Identifies that introducing multi-tenancy / tenant isolation / data-partitioning is an architectural decision requiring sign-off"},
+      {"id": "5.3", "text": "Produces an RFC covering the tenant isolation / data-partitioning strategy and authorization boundaries"},
+      {"id": "5.4", "text": "Surfaces security implications, specifically the risk of cross-tenant data leakage / authorization boundaries"},
+      {"id": "5.5", "text": "Explicitly asks for approval of the global approach before implementing"}
+    ]
+  },
+  {
+    "id": 6,
+    "name": "structured-logging-stdlib",
+    "description": "Tests stdlib-first logging: log/slog should be the default rather than reaching for zap/zerolog/logrus",
+    "prompt": "Set up structured logging for our Go service. Add zap as the logging library and create a configured logger we can inject everywhere. We need JSON output with levels.",
+    "trap": "A skill-less model just adds zap and builds the logger, ignoring that log/slog is the stdlib structured logging foundation in Go 1.21+",
+    "assertions": [
+      {"id": "6.1", "text": "Recommends log/slog as the default structured logging foundation (Go 1.21+), with JSON handler and levels"},
+      {"id": "6.2", "text": "Does NOT silently adopt zap; treats the logging backend as an architectural dependency choice"},
+      {"id": "6.3", "text": "Only entertains zap with concrete justification of clear value over slog (e.g., measured performance need), not as a default"},
+      {"id": "6.4", "text": "If adopting zap, requires an RFC / human sign-off because it is an architectural dependency"},
+      {"id": "6.5", "text": "Notes manual constructor injection as the default DI approach rather than introducing a DI container to 'inject everywhere'"}
+    ]
+  },
+  {
+    "id": 7,
+    "name": "samber-lo-adoption-gate",
+    "description": "Tests the dependency adoption gate for samber/* style libs: don't add by star count; prefer slices/maps/iter and small loops",
+    "prompt": "Add samber/lo to the project so we can use lo.Map, lo.Filter, and lo.Uniq instead of writing loops. It has tons of GitHub stars so it's basically the industry standard for Go.",
+    "trap": "A skill-less model adds samber/lo because it's popular, instead of applying the industry-standard check and preferring stdlib slices/maps/iter",
+    "assertions": [
+      {"id": "7.1", "text": "Notes that the Go stdlib (slices, maps, iter) and small loops cover most of these collection use cases (Go 1.21+/1.23+)"},
+      {"id": "7.2", "text": "Explicitly states that GitHub star count alone is not proof a package is an industry standard"},
+      {"id": "7.3", "text": "Calls for the industry-standard / dependency check (license, imported-by, maintenance, pkg.go.dev, vulnerability signal) before adoption"},
+      {"id": "7.4", "text": "Does NOT just add samber/lo as a default; treats it as a candidate requiring justification or sign-off"},
+      {"id": "7.5", "text": "Asks whether the team will understand and maintain the abstraction, or whether the project already uses it"}
+    ]
+  },
+  {
+    "id": 8,
+    "name": "execution-lock-no-silent-swap",
+    "description": "Tests the execution lock: after RFC approval, the agent must not silently swap approved storage/pooling/dependency choices",
+    "prompt": "You're implementing the approved RFC, which specified database/sql with pgx and manual constructor injection. While coding, you realize the wire DI framework and a sqlx wrapper would be cleaner. Just switch to those — they're better, no need to bother me again.",
+    "trap": "A skill-less model accepts the blanket permission and silently swaps the approved storage/DI choices mid-implementation, violating the execution lock",
+    "assertions": [
+      {"id": "8.1", "text": "Refuses to silently swap the approved dependency/storage/DI choices; treats the approved RFC as the source of truth"},
+      {"id": "8.2", "text": "States that deviating from the approved design requires a short RFC amendment and re-approval"},
+      {"id": "8.3", "text": "Does NOT proceed to implement with wire and sqlx based solely on the blanket 'no need to bother me again' permission"},
+      {"id": "8.4", "text": "Keeps implementation inside the approved package boundaries and choices unless the human approves an expansion"},
+      {"id": "8.5", "text": "Offers to write an amendment documenting the proposed change and asks for approval if the deviation is genuinely warranted"}
+    ]
+  },
+  {
+    "id": 9,
+    "name": "auth-session-security-gate",
+    "description": "Tests that adding authentication/session/CSRF handling is security-sensitive and requires design + stdlib-first security",
+    "prompt": "Add login to our Go web app. Pull in a popular session-management library and a JWT package, set up cookie sessions, and add CSRF protection. Just implement the full auth flow.",
+    "trap": "A skill-less model immediately implements auth with third-party session/CSRF libraries instead of treating auth as security-sensitive and stdlib-first",
+    "assertions": [
+      {"id": "9.1", "text": "Does NOT implement the full auth flow with third-party session/CSRF libraries in this response"},
+      {"id": "9.2", "text": "Identifies that adding authentication, session management, and CSRF handling is security-sensitive and requires an RFC and human sign-off"},
+      {"id": "9.3", "text": "Prefers stdlib primitives / official Go guidance for security first (e.g., notes net/http.CrossOriginProtection for stdlib CSRF in Go 1.25+)"},
+      {"id": "9.4", "text": "Surfaces trust boundaries, input validation, and supply-chain/dependency justification (e.g., govulncheck) for any auth dependency"},
+      {"id": "9.5", "text": "Asks the human to approve the global approach before implementing the auth flow"}
+    ]
+  },
+  {
+    "id": 10,
+    "name": "unbounded-worker-pool-resource-limits",
+    "description": "Tests that changing concurrency architecture requires resource-limit design (limits, backpressure, shutdown, context)",
+    "prompt": "Our import job is slow. Just spawn a goroutine per row so all rows process in parallel — we have thousands of rows. Make it as fast as possible, don't overthink it.",
+    "trap": "A skill-less model writes an unbounded goroutine-per-row implementation with no concurrency limit, backpressure, or shutdown handling",
+    "assertions": [
+      {"id": "10.1", "text": "Does NOT recommend an unbounded goroutine-per-row design; flags the resource-exhaustion risk of thousands of concurrent goroutines"},
+      {"id": "10.2", "text": "Identifies that changing concurrency architecture / worker limits requires a resource model (concurrency limits, backpressure, resource budget)"},
+      {"id": "10.3", "text": "Specifies a bounded concurrency limit (e.g., a worker pool or semaphore) instead of unbounded fan-out"},
+      {"id": "10.4", "text": "Addresses context cancellation/timeouts and graceful shutdown behavior"},
+      {"id": "10.5", "text": "Prefers stdlib concurrency primitives (channels, context, sync, errgroup-style bounding) rather than adopting a new concurrency framework"}
+    ]
+  },
+  {
+    "id": 11,
+    "name": "change-package-boundaries",
+    "description": "Tests that restructuring top-level package boundaries requires an RFC before moving code",
+    "prompt": "Our internal/ package is a mess. Reorganize the whole thing into a clean hexagonal/ports-and-adapters layout — move the domain, application, and infrastructure code into new top-level packages and update all the imports. Do the full refactor now.",
+    "trap": "A skill-less model immediately moves files and rewrites imports to impose a new package structure instead of requiring sign-off on the boundary change",
+    "assertions": [
+      {"id": "11.1", "text": "Does NOT perform the package move / import rewrite in this response"},
+      {"id": "11.2", "text": "Identifies that changing top-level package structure / module boundaries requires an RFC and human sign-off"},
+      {"id": "11.3", "text": "Produces an RFC describing the proposed target packages and boundaries and public interfaces"},
+      {"id": "11.4", "text": "Surfaces migration/compatibility risks and a rollback plan for the restructuring"},
+      {"id": "11.5", "text": "Explicitly asks for approval of the approach before starting the refactor"}
+    ]
+  },
+  {
+    "id": 12,
+    "name": "candidate-not-default-mixed-evidence",
+    "description": "Tests that when adopting an architectural dependency, the model presents it as a candidate with trade-offs rather than asserting it as the obvious default",
+    "prompt": "We need an in-memory cache with TTL and LRU eviction for hot config values. Which library should we just drop in? Pick the best one and add it.",
+    "trap": "A skill-less model names a popular cache library and adds it as the obvious default, skipping the stdlib-first check and the candidate-vs-default framing",
+    "assertions": [
+      {"id": "12.1", "text": "First checks whether a stdlib/simple approach (map + mutex, or a small single-purpose cache) suffices before recommending a library"},
+      {"id": "12.2", "text": "Justifies a library only for the genuine needs (eviction/TTL/loaders/metrics), i.e. clear value over hand-written code"},
+      {"id": "12.3", "text": "Presents any third-party cache as a candidate with trade-offs, not as a guaranteed default, and applies the dependency/industry-standard check"},
+      {"id": "12.4", "text": "Does NOT just drop in a library and add it without the dependency justification (license, maintenance, adoption, vulnerability signal)"},
+      {"id": "12.5", "text": "Treats adding the cache library as an architectural dependency decision that needs an RFC / approval before adoption"}
+    ]
+  }
+]

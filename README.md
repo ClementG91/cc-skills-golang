@@ -4,7 +4,8 @@ AI agent skills are reusable instruction sets that extend your coding assistant 
 
 For generic skills, please visit [cc-skills](https://github.com/samber/cc-skills).
 
-> [!IMPORTANT] Bootstrapped with Claude Code by distilling my Go project commits. **Edited, tested, reviewed and reworked by a human**.
+> [!IMPORTANT]
+> Bootstrapped with Claude Code by distilling my Go project commits. **Edited, tested, reviewed and reworked by a human**.
 >
 > **No AI slop here.** AI-made skills are useless.
 
@@ -241,6 +242,17 @@ These skills are designed as **atomic, cross-referencing units**. A skill may re
 | **Overall** | **3315/3395 (98%)** | **1915/3395 (56%)** | **+41pp** |
 
 See [EVALUATIONS.md](./EVALUATIONS.md) for the full per-skill breakdown.
+
+> [!NOTE]
+> Read these numbers with their limits in mind. Pass/fail is decided by an
+> LLM-as-judge, and the harness default judges with the **same provider/model
+> that generated the answer** (self-judging), so per-skill deltas — especially
+> the small ones — carry judge bias; a few skills are human- or self-graded.
+> Several `evals.json` suites have also grown since the table was last
+> regenerated, so the published per-skill counts currently lag the repo and
+> `scripts/audit-evaluations.py` exits non-zero by design until a fresh harness
+> run reconciles them. Treat the headline figures as directional, not exact,
+> until regenerated with a third-party judge.
 
 For the stdlib-first governance branch, run:
 
