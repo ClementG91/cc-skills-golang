@@ -57,7 +57,10 @@ Rules:
 - Do not infer unstated facts.
 - For assertions starting with "Does NOT", pass only when the prohibited behavior is absent.
 - Ignore style unless the assertion explicitly requires style.
-- Return only valid JSON with keys: pass, confidence, rationale.
+- Use "unknown" when the answer is ambiguous, incomplete, or the assertion cannot be judged reliably.
+- Return only valid JSON with keys: verdict, pass, confidence, rationale.
+- verdict must be exactly one of: "pass", "fail", "unknown".
+- pass must be true only when verdict is "pass"; otherwise false.
 """
 
 
@@ -83,6 +86,7 @@ class EvalCase:
 class Candidate:
     variant: str
     blind_id: str
+    repeat_index: int
     response: str
     provider: str
     model: str
@@ -110,6 +114,10 @@ def sha256_text(value: str) -> str:
 def now_run_id() -> str:
     stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"{stamp}-{uuid.uuid4().hex[:8]}"
+
+
+def deterministic_token(value: str, length: int = 10) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
 def read_json(path: Path) -> Any:
@@ -337,11 +345,13 @@ def generate_candidate(
     root: Path,
     args: argparse.Namespace,
     blind_id: str,
+    repeat_index: int,
 ) -> Candidate:
     if args.dry_run:
         return Candidate(
             variant=variant,
             blind_id=blind_id,
+            repeat_index=repeat_index,
             response=f"DRY RUN: {variant} response for {case.skill}/{case.eval_id}",
             provider=args.provider,
             model=args.model,
@@ -374,7 +384,7 @@ def generate_candidate(
         response = ""
         error = str(exc)
     latency_ms = int((time.perf_counter() - started) * 1000)
-    return Candidate(variant, blind_id, response, args.provider, args.model, latency_ms, error)
+    return Candidate(variant, blind_id, repeat_index, response, args.provider, args.model, latency_ms, error)
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -408,6 +418,7 @@ def score_native_assertion(assertion: AssertionItem, response: str) -> dict[str,
     elif kind == "not_regex":
         passed = not re.search(assertion.text, response, flags=re.IGNORECASE | re.DOTALL)
     return {
+        "verdict": "pass" if passed else "fail",
         "pass": bool(passed),
         "confidence": 1.0,
         "rationale": f"native {kind} assertion",
@@ -426,6 +437,7 @@ def judge_assertion(
 ) -> dict[str, Any]:
     if candidate.error:
         return {
+            "verdict": "unknown",
             "pass": False,
             "confidence": 1.0,
             "rationale": f"candidate generation failed: {candidate.error}",
@@ -441,6 +453,7 @@ def judge_assertion(
 
     if args.dry_run:
         return {
+            "verdict": "unknown",
             "pass": False,
             "confidence": 0.0,
             "rationale": "dry run: judge not called",
@@ -480,17 +493,25 @@ Assertion to evaluate:
             args.retry_sleep_seconds,
         )
         data = extract_json_object(raw)
-        passed = bool(data.get("pass"))
-        confidence = float(data.get("confidence", 0))
+        raw_verdict = str(data.get("verdict") or "").lower().strip()
+        if raw_verdict not in {"pass", "fail", "unknown"}:
+            raw_verdict = "pass" if bool(data.get("pass")) else "fail"
+        confidence = max(0.0, min(1.0, float(data.get("confidence", 0))))
+        verdict = raw_verdict
+        if confidence < args.min_judge_confidence:
+            verdict = "unknown"
+        passed = verdict == "pass"
         rationale = str(data.get("rationale", ""))
         error = ""
     except Exception as exc:  # noqa: BLE001 - persisted as artifact.
+        verdict = "unknown"
         passed = False
         confidence = 0.0
         rationale = "judge failed"
         error = str(exc)
     latency_ms = int((time.perf_counter() - started) * 1000)
     return {
+        "verdict": verdict,
         "pass": passed,
         "confidence": confidence,
         "rationale": rationale,
@@ -502,43 +523,51 @@ Assertion to evaluate:
 
 
 def run_case(case: EvalCase, root: Path, args: argparse.Namespace) -> dict[str, Any]:
-    blind_ids = {"with_skill": uuid.uuid4().hex[:10], "without_skill": uuid.uuid4().hex[:10]}
-    variants = ["with_skill", "without_skill"]
-    random.shuffle(variants)
-
-    candidates = [
-        generate_candidate(case, variant, root, args, blind_ids[variant])
-        for variant in variants
-    ]
     results = []
-    for candidate in candidates:
-        assertion_results = []
-        for assertion in case.assertions:
-            score = judge_assertion(case, candidate, assertion, args)
-            assertion_results.append(
+    for repeat_index in range(1, args.repetitions + 1):
+        seed_material = f"{args.seed}:{case.skill}:{case.eval_id}:{case.name}:{repeat_index}"
+        blind_ids = {
+            "with_skill": deterministic_token(f"{seed_material}:with_skill"),
+            "without_skill": deterministic_token(f"{seed_material}:without_skill"),
+        }
+        variants = ["with_skill", "without_skill"]
+        random.Random(seed_material).shuffle(variants)
+
+        candidates = [
+            generate_candidate(case, variant, root, args, blind_ids[variant], repeat_index)
+            for variant in variants
+        ]
+        for candidate in candidates:
+            assertion_results = []
+            for assertion in case.assertions:
+                score = judge_assertion(case, candidate, assertion, args)
+                assertion_results.append(
+                    {
+                        "id": assertion.assertion_id,
+                        "text": assertion.text,
+                        "type": assertion.kind,
+                        **score,
+                    }
+                )
+            passed = sum(1 for item in assertion_results if item["pass"])
+            unknown = sum(1 for item in assertion_results if item["verdict"] == "unknown")
+            results.append(
                 {
-                    "id": assertion.assertion_id,
-                    "text": assertion.text,
-                    "type": assertion.kind,
-                    **score,
+                    "variant": candidate.variant,
+                    "blind_id": candidate.blind_id,
+                    "repeat_index": candidate.repeat_index,
+                    "provider": candidate.provider,
+                    "model": candidate.model,
+                    "latency_ms": candidate.latency_ms,
+                    "response_sha256": sha256_text(candidate.response),
+                    "response": candidate.response,
+                    "error": candidate.error,
+                    "passed_assertions": passed,
+                    "unknown_assertions": unknown,
+                    "total_assertions": len(assertion_results),
+                    "assertions": assertion_results,
                 }
             )
-        passed = sum(1 for item in assertion_results if item["pass"])
-        results.append(
-            {
-                "variant": candidate.variant,
-                "blind_id": candidate.blind_id,
-                "provider": candidate.provider,
-                "model": candidate.model,
-                "latency_ms": candidate.latency_ms,
-                "response_sha256": sha256_text(candidate.response),
-                "response": candidate.response,
-                "error": candidate.error,
-                "passed_assertions": passed,
-                "total_assertions": len(assertion_results),
-                "assertions": assertion_results,
-            }
-        )
 
     return {
         "skill": case.skill,
@@ -548,17 +577,20 @@ def run_case(case: EvalCase, root: Path, args: argparse.Namespace) -> dict[str, 
         "expected_output": case.expected_output,
         "trap": case.trap,
         "assertion_count": len(case.assertions),
+        "repetitions": args.repetitions,
         "results": results,
     }
 
 
-def summarize(case_results: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(case_results: list[dict[str, Any]], bootstrap_samples: int, confidence_level: float) -> dict[str, Any]:
     by_skill: dict[str, dict[str, int]] = {}
     totals = {
         "with_skill_pass": 0,
         "without_skill_pass": 0,
         "with_skill_total": 0,
         "without_skill_total": 0,
+        "with_skill_unknown": 0,
+        "without_skill_unknown": 0,
         "generation_errors": 0,
         "judge_errors": 0,
     }
@@ -571,6 +603,8 @@ def summarize(case_results: list[dict[str, Any]]) -> dict[str, Any]:
                 "without_skill_pass": 0,
                 "with_skill_total": 0,
                 "without_skill_total": 0,
+                "with_skill_unknown": 0,
+                "without_skill_unknown": 0,
                 "evals": 0,
             },
         )
@@ -583,12 +617,77 @@ def summarize(case_results: list[dict[str, Any]]) -> dict[str, Any]:
             bucket[total_key] += int(result["total_assertions"])
             totals[pass_key] += int(result["passed_assertions"])
             totals[total_key] += int(result["total_assertions"])
+            unknown_key = f"{variant}_unknown"
+            bucket[unknown_key] += int(result.get("unknown_assertions", 0))
+            totals[unknown_key] += int(result.get("unknown_assertions", 0))
             if result["error"]:
                 totals["generation_errors"] += 1
             for assertion in result["assertions"]:
                 if assertion["error"]:
                     totals["judge_errors"] += 1
-    return {"totals": totals, "skills": by_skill}
+    return {
+        "totals": totals,
+        "skills": by_skill,
+        "paired_delta": paired_delta_stats(case_results, bootstrap_samples, confidence_level),
+    }
+
+
+def paired_deltas(case_results: list[dict[str, Any]]) -> list[int]:
+    deltas: list[int] = []
+    for case in case_results:
+        grouped: dict[tuple[int, str], dict[str, bool]] = {}
+        for result in case["results"]:
+            variant = result["variant"]
+            repeat_index = int(result.get("repeat_index", 1))
+            for assertion in result["assertions"]:
+                key = (repeat_index, str(assertion["id"]))
+                grouped.setdefault(key, {})[variant] = bool(assertion["pass"])
+        for variants in grouped.values():
+            if "with_skill" in variants and "without_skill" in variants:
+                deltas.append(int(variants["with_skill"]) - int(variants["without_skill"]))
+    return deltas
+
+
+def percentile(values: list[float], quantile: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * quantile
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+def paired_delta_stats(case_results: list[dict[str, Any]], samples: int = 1000, confidence: float = 0.95) -> dict[str, Any]:
+    deltas = paired_deltas(case_results)
+    if not deltas:
+        return {
+            "paired_assertions": 0,
+            "mean_delta_pp": 0.0,
+            "ci_low_pp": 0.0,
+            "ci_high_pp": 0.0,
+            "bootstrap_samples": samples,
+            "confidence": confidence,
+        }
+
+    mean_delta = sum(deltas) / len(deltas) * 100
+    rng = random.Random("bootstrap")
+    bootstrapped: list[float] = []
+    for _ in range(samples):
+        draw = [deltas[rng.randrange(len(deltas))] for _ in range(len(deltas))]
+        bootstrapped.append(sum(draw) / len(draw) * 100)
+    alpha = (1 - confidence) / 2
+    return {
+        "paired_assertions": len(deltas),
+        "mean_delta_pp": round(mean_delta, 2),
+        "ci_low_pp": round(percentile(bootstrapped, alpha), 2),
+        "ci_high_pp": round(percentile(bootstrapped, 1 - alpha), 2),
+        "bootstrap_samples": samples,
+        "confidence": confidence,
+    }
 
 
 def pct(passed: int, total: int) -> float:
@@ -600,6 +699,7 @@ def pct(passed: int, total: int) -> float:
 def write_summary_markdown(path: Path, run: dict[str, Any]) -> None:
     summary = run["summary"]
     totals = summary["totals"]
+    paired = summary["paired_delta"]
     with_pct = pct(totals["with_skill_pass"], totals["with_skill_total"])
     without_pct = pct(totals["without_skill_pass"], totals["without_skill_total"])
     delta = round(with_pct - without_pct, 2)
@@ -611,33 +711,108 @@ def write_summary_markdown(path: Path, run: dict[str, Any]) -> None:
         f"- Generation provider/model: `{run['provider']}` / `{run['model']}`",
         f"- Judge provider/model: `{run['judge_provider']}` / `{run['judge_model']}`",
         f"- Context mode: `{run['context_mode']}`",
+        f"- Repetitions: `{run['repetitions']}`",
+        f"- Seed: `{run['seed']}`",
         f"- Dry run: `{run['dry_run']}`",
         "",
         "## Totals",
         "",
-        "| Variant | Passed | Total | Score |",
-        "| --- | ---: | ---: | ---: |",
-        f"| with skill | {totals['with_skill_pass']} | {totals['with_skill_total']} | {with_pct}% |",
-        f"| without skill | {totals['without_skill_pass']} | {totals['without_skill_total']} | {without_pct}% |",
+        "| Variant | Passed | Unknown | Total | Score |",
+        "| --- | ---: | ---: | ---: | ---: |",
+        (
+            f"| with skill | {totals['with_skill_pass']} | {totals['with_skill_unknown']} | "
+            f"{totals['with_skill_total']} | {with_pct}% |"
+        ),
+        (
+            f"| without skill | {totals['without_skill_pass']} | {totals['without_skill_unknown']} | "
+            f"{totals['without_skill_total']} | {without_pct}% |"
+        ),
         "",
         f"Delta: `{delta:+.2f}pp`",
+        (
+            "Paired bootstrap delta: "
+            f"`{paired['mean_delta_pp']:+.2f}pp` "
+            f"({int(paired['confidence'] * 100)}% CI "
+            f"`{paired['ci_low_pp']:+.2f}` to `{paired['ci_high_pp']:+.2f}` pp, "
+            f"{paired['paired_assertions']} paired assertions)"
+        ),
         "",
         f"Generation errors: `{totals['generation_errors']}`",
         f"Judge errors: `{totals['judge_errors']}`",
         "",
         "## By Skill",
         "",
-        "| Skill | Evals | With | Without | Delta |",
-        "| --- | ---: | ---: | ---: | ---: |",
+        "| Skill | Evals | With | Without | Unknown | Delta |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for skill, row in sorted(summary["skills"].items()):
         skill_with = pct(row["with_skill_pass"], row["with_skill_total"])
         skill_without = pct(row["without_skill_pass"], row["without_skill_total"])
         skill_delta = round(skill_with - skill_without, 2)
-        lines.append(f"| `{skill}` | {row['evals']} | {skill_with}% | {skill_without}% | {skill_delta:+.2f}pp |")
+        skill_unknown = row["with_skill_unknown"] + row["without_skill_unknown"]
+        lines.append(
+            f"| `{skill}` | {row['evals']} | {skill_with}% | {skill_without}% | "
+            f"{skill_unknown} | {skill_delta:+.2f}pp |"
+        )
     lines.append("")
     lines.append("Raw prompts, responses, blind ids, and judge rationales are in `results.json`.")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_calibration_sample(output_dir: Path, run: dict[str, Any], sample_size: int, seed: int) -> None:
+    if sample_size <= 0:
+        return
+    rows: list[dict[str, Any]] = []
+    answer_key: list[dict[str, Any]] = []
+    for case in run["cases"]:
+        for result in case["results"]:
+            for assertion in result["assertions"]:
+                review_id = deterministic_token(
+                    f"{run['run_id']}:{case['skill']}:{case['eval_id']}:{result['repeat_index']}:"
+                    f"{result['blind_id']}:{assertion['id']}",
+                    16,
+                )
+                rows.append(
+                    {
+                        "review_id": review_id,
+                        "skill": case["skill"],
+                        "eval_id": case["eval_id"],
+                        "eval_name": case["name"],
+                        "repeat_index": result["repeat_index"],
+                        "blind_id": result["blind_id"],
+                        "prompt": case["prompt"],
+                        "expected_output": case["expected_output"],
+                        "trap": case["trap"],
+                        "candidate_answer": result["response"],
+                        "assertion_id": assertion["id"],
+                        "assertion": assertion["text"],
+                        "judge_verdict": assertion["verdict"],
+                        "judge_confidence": assertion["confidence"],
+                        "judge_rationale": assertion["rationale"],
+                        "human_verdict": "",
+                        "human_notes": "",
+                    }
+                )
+                answer_key.append(
+                    {
+                        "review_id": review_id,
+                        "variant": result["variant"],
+                        "response_sha256": result["response_sha256"],
+                    }
+                )
+    rng = random.Random(seed)
+    rng.shuffle(rows)
+    selected = rows[: min(sample_size, len(rows))]
+    selected_ids = {row["review_id"] for row in selected}
+    selected_answer_key = [row for row in answer_key if row["review_id"] in selected_ids]
+
+    with (output_dir / "calibration_sample.jsonl").open("w", encoding="utf-8") as handle:
+        for row in selected:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    (output_dir / "calibration_answer_key.json").write_text(
+        json.dumps(selected_answer_key, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -664,6 +839,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-dir", default="artifacts/evaluations")
     parser.add_argument("--run-id", default="")
+    parser.add_argument("--seed", type=int, default=int(os.environ.get("EVAL_SEED", "1")))
+    parser.add_argument("--repetitions", type=int, default=int(os.environ.get("EVAL_REPETITIONS", "1")))
     parser.add_argument("--max-workers", type=int, default=int(os.environ.get("EVAL_MAX_WORKERS", "1")))
     parser.add_argument("--max-output-tokens", type=int, default=int(os.environ.get("EVAL_MAX_OUTPUT_TOKENS", "4096")))
     parser.add_argument(
@@ -678,6 +855,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=float(os.environ.get("EVAL_RETRY_SLEEP_SECONDS", "2")),
     )
+    parser.add_argument(
+        "--min-judge-confidence",
+        type=float,
+        default=float(os.environ.get("EVAL_MIN_JUDGE_CONFIDENCE", "0")),
+        help="Mark judge decisions below this confidence as unknown.",
+    )
+    parser.add_argument(
+        "--bootstrap-samples",
+        type=int,
+        default=int(os.environ.get("EVAL_BOOTSTRAP_SAMPLES", "1000")),
+        help="Bootstrap samples for paired delta confidence interval.",
+    )
+    parser.add_argument(
+        "--confidence-level",
+        type=float,
+        default=float(os.environ.get("EVAL_CONFIDENCE_LEVEL", "0.95")),
+        help="Confidence level for paired bootstrap interval.",
+    )
+    parser.add_argument(
+        "--calibration-sample-size",
+        type=int,
+        default=int(os.environ.get("EVAL_CALIBRATION_SAMPLE_SIZE", "0")),
+        help="Write a blinded human calibration JSONL sample with this many assertion judgments.",
+    )
     parser.add_argument("--min-delta-pp", type=float, default=None, help="Fail if with-skill delta is below this.")
     parser.add_argument("--fail-on-errors", action="store_true", help="Fail when generation or judge errors occur.")
     parser.add_argument("--dry-run", action="store_true", help="Validate selection and artifact writing without API calls.")
@@ -691,6 +892,15 @@ def split_csv(value: str) -> set[str] | None:
 
 def main() -> int:
     args = parse_args()
+    if args.repetitions < 1:
+        raise SystemExit("--repetitions must be >= 1")
+    if not 0 <= args.min_judge_confidence <= 1:
+        raise SystemExit("--min-judge-confidence must be between 0 and 1")
+    if args.bootstrap_samples < 1:
+        raise SystemExit("--bootstrap-samples must be >= 1")
+    if not 0 < args.confidence_level < 1:
+        raise SystemExit("--confidence-level must be between 0 and 1")
+
     root = repo_root()
     run_id = args.run_id or now_run_id()
     output_dir = root / args.output_dir / run_id
@@ -711,6 +921,12 @@ def main() -> int:
         "judge_provider": args.judge_provider,
         "judge_model": args.judge_model,
         "context_mode": args.context_mode,
+        "seed": args.seed,
+        "repetitions": args.repetitions,
+        "min_judge_confidence": args.min_judge_confidence,
+        "bootstrap_samples": args.bootstrap_samples,
+        "confidence_level": args.confidence_level,
+        "calibration_sample_size": args.calibration_sample_size,
         "dry_run": args.dry_run,
         "selected_skills": sorted({case.skill for case in cases}),
         "selected_eval_count": len(cases),
@@ -741,25 +957,33 @@ def main() -> int:
     run = {
         **manifest,
         "completed_at": dt.datetime.now(dt.UTC).isoformat(),
-        "summary": summarize(case_results),
+        "summary": summarize(case_results, args.bootstrap_samples, args.confidence_level),
         "cases": case_results,
     }
     (output_dir / "results.json").write_text(json.dumps(run, indent=2) + "\n", encoding="utf-8")
     write_summary_markdown(output_dir / "summary.md", run)
+    write_calibration_sample(output_dir, run, args.calibration_sample_size, args.seed)
 
     totals = run["summary"]["totals"]
+    paired = run["summary"]["paired_delta"]
     with_pct = pct(totals["with_skill_pass"], totals["with_skill_total"])
     without_pct = pct(totals["without_skill_pass"], totals["without_skill_total"])
     delta = round(with_pct - without_pct, 2)
     print(f"with skill: {with_pct}%")
     print(f"without skill: {without_pct}%")
     print(f"delta: {delta:+.2f}pp")
+    print(
+        "paired bootstrap delta: "
+        f"{paired['mean_delta_pp']:+.2f}pp "
+        f"({int(paired['confidence'] * 100)}% CI {paired['ci_low_pp']:+.2f}..{paired['ci_high_pp']:+.2f}pp)"
+    )
+    print(f"unknown judgments: {totals['with_skill_unknown'] + totals['without_skill_unknown']}")
     print(f"generation errors: {totals['generation_errors']}")
     print(f"judge errors: {totals['judge_errors']}")
 
     if args.fail_on_errors and (totals["generation_errors"] or totals["judge_errors"]):
         return 1
-    if args.min_delta_pp is not None and delta < args.min_delta_pp:
+    if args.min_delta_pp is not None and paired["mean_delta_pp"] < args.min_delta_pp:
         return 1
     return 0
 

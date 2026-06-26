@@ -19,6 +19,14 @@ For each selected eval case, the harness:
 
 The judge does not receive the candidate variant label. It only sees the task, the candidate answer, optional expected/trap text, and one assertion.
 
+The judge can return three verdicts:
+
+- `pass`
+- `fail`
+- `unknown`
+
+`unknown` is used when the assertion cannot be judged reliably. Low-confidence judge decisions can also be forced to `unknown` with `--min-judge-confidence`.
+
 ## Why GitHub Actions Instead Of Harness.io
 
 Harness.io has a free plan, but a reusable fork cannot run Harness pipelines without a Harness account, project setup, and provider-specific secrets. GitHub Actions is free for public repositories, already available on GitHub forks, and can store the exact same artifacts.
@@ -95,6 +103,8 @@ python scripts/run-llm-evaluations.py \
   --skills golang-samber-lo \
   --limit 2 \
   --context-mode skill-only \
+  --repetitions 1 \
+  --calibration-sample-size 20 \
   --fail-on-errors
 ```
 
@@ -121,8 +131,28 @@ Recommended real smoke run:
 - `limit`: `2`
 - `context_mode`: `skill-only`
 - `max_workers`: `1`
+- `repetitions`: `1`
+- `min_judge_confidence`: `0`
+- `calibration_sample_size`: `20`
 
 Run full suites only when cost is acceptable. The harness writes full transcripts and judge rationales as workflow artifacts.
+
+## Statistical Reporting
+
+The harness reports:
+
+- raw with-skill and without-skill pass rates,
+- unknown judgment counts,
+- paired assertion-level delta,
+- bootstrap confidence interval for the paired delta,
+- generation and judge error counts.
+
+Use `--repetitions 3` on a small subset when you want to estimate flakiness. Use `--calibration-sample-size` to export a blinded human review sample.
+
+The calibration export writes:
+
+- `calibration_sample.jsonl`: prompts, candidate answers, assertions, judge verdicts, and blank human review fields.
+- `calibration_answer_key.json`: variant mapping kept separate from the review sample.
 
 ## GitHub Secret Setup
 
@@ -162,9 +192,23 @@ Treat a score as publishable only when:
 - The generation and judge model names are recorded.
 - The git commit SHA is recorded.
 - The judge is blind to with-skill versus without-skill labels.
+- Unknown judgments are reported, not silently converted into failures.
+- A human-reviewed calibration sample exists for any headline claim.
+- Repetitions or confidence intervals are reported for noisy model-based evals.
 - Provider and judge errors are zero, or explicitly explained.
 - The selected eval set is declared.
 - The context mode is declared.
 - The same prompt set is used for both variants.
 
 Do not compare scores from different model versions, context modes, or eval subsets as if they were the same benchmark.
+
+## Methodology Sources
+
+The harness design follows these published recommendations and caveats:
+
+- [OpenAI Evals cookbook](https://developers.openai.com/cookbook/examples/evaluation/getting_started_with_openai_evals): model-graded evals are useful, but should be validated against human judgment.
+- [Anthropic: Define success criteria and build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests): prefer specific criteria, code-based grading where possible, and structured evaluation.
+- [Anthropic: Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents): use deterministic graders where possible, calibrate with human experts, and inspect transcripts.
+- [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685): LLM judges can have position, verbosity, and self-enhancement biases.
+- [Pairwise or Pointwise?](https://arxiv.org/abs/2504.14716): pairwise and pointwise LLM judging have different bias profiles; do not treat one judge configuration as universal truth.
+- [Google Gen AI evaluation service](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/evaluation): model-based and computation-based metrics should be explicit and reported with configuration.

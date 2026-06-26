@@ -54,6 +54,21 @@ on:
         required: true
         default: "1"
         type: string
+      repetitions:
+        description: "Repeated generations per eval and variant"
+        required: true
+        default: "1"
+        type: string
+      min_judge_confidence:
+        description: "Mark judge decisions below this confidence as unknown"
+        required: true
+        default: "0"
+        type: string
+      calibration_sample_size:
+        description: "Blinded human calibration sample size"
+        required: true
+        default: "0"
+        type: string
       min_delta_pp:
         description: "Fail if with-skill uplift is below this delta, empty disables"
         required: false
@@ -119,6 +134,9 @@ jobs:
             --judge-model "${{ inputs.judge_model }}"
             --context-mode "${{ inputs.context_mode }}"
             --max-workers "${{ inputs.max_workers }}"
+            --repetitions "${{ inputs.repetitions }}"
+            --min-judge-confidence "${{ inputs.min_judge_confidence }}"
+            --calibration-sample-size "${{ inputs.calibration_sample_size }}"
             --output-dir artifacts/evaluations
           )
           if [ -n "${{ inputs.skills }}" ]; then
