@@ -120,7 +120,7 @@ type UserRepoSuite struct {
 }
 
 func (s *UserRepoSuite) SetupSuite() {
-    dsn := os.Getenv("TEST_DATABASE_URL") // e.g., postgres://USER:PASSWORD@localhost:5432/testdb?sslmode=disable
+    dsn := os.Getenv("TEST_DATABASE_URL") // e.g., postgres://localhost:5432/testdb?sslmode=disable
     db, err := sqlx.Connect("postgres", dsn)
     s.Require().NoError(err)
     s.db = db
