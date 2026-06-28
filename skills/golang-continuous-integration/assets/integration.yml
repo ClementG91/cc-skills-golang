@@ -49,5 +49,5 @@ jobs:
       - name: Run integration tests
         run: go test -v -race -tags=integration -count=1 ./...
         env:
-          DATABASE_URL: postgres://USER:PASSWORD@localhost:5432/testdb?sslmode=disable
+          DATABASE_URL: postgres://localhost:5432/testdb?sslmode=disable
           REDIS_URL: redis://localhost:6379

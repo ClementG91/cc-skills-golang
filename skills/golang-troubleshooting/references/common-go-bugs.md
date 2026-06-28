@@ -346,7 +346,7 @@ When unmarshaling into `map[string]interface{}` or `interface{}`, all JSON numbe
 ```go
 // BAD
 var result map[string]interface{}
-json.Unmarshal([]byte(`{"id": 1234567890123456789}`), &result)
+json.Unmarshal([]byte(`{"id": 9007199254740993}`), &result)
 id := result["id"].(int) // PANIC: it's float64, not int
 
 // GOOD — use typed struct (preferred)

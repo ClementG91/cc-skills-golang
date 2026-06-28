@@ -26,7 +26,7 @@ func setupContinuousProfiling() {
 
     _, err := pyroscope.Start(pyroscope.Config{
         ApplicationName: "my-service",
-        ServerAddress:   os.Getenv("PYROSCOPE_URL"), // e.g., http://USER:PASSWORD@pyroscope:4040
+        ServerAddress:   os.Getenv("PYROSCOPE_URL"), // e.g., http://pyroscope:4040
         ProfileTypes: []pyroscope.ProfileType{
             pyroscope.ProfileCPU,
             pyroscope.ProfileAllocObjects,

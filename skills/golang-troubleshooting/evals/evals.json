@@ -143,7 +143,7 @@
     "id": 11,
     "name": "json-numbers-float64-interface",
     "description": "Tests JSON unmarshaling gotcha: numbers into interface{} become float64, not int",
-    "prompt": "My Go code panics when processing JSON API responses. The JSON looks like `{\"user_id\": 1234567890123456789}`. I unmarshal into `map[string]interface{}` and then type-assert the user_id to int64:\n\n```go\nvar result map[string]interface{}\njson.Unmarshal(data, &result)\nuserID := result[\"user_id\"].(int64)\n```\nWhy does this panic?",
+    "prompt": "My Go code panics when processing JSON API responses. The JSON looks like `{\"user_id\": 9007199254740993}`. I unmarshal into `map[string]interface{}` and then type-assert the user_id to int64:\n\n```go\nvar result map[string]interface{}\njson.Unmarshal(data, &result)\nuserID := result[\"user_id\"].(int64)\n```\nWhy does this panic?",
     "trap": "Model suggests the JSON is malformed or the field name doesn't match, rather than explaining the float64 type gotcha",
     "assertions": [
       {"id": "11.1", "text": "Explains that JSON numbers unmarshaled into interface{} become float64, not int or int64"},

@@ -99,7 +99,7 @@ func (s *DatabaseTestSuite) SetupSuite() {
 
     time.Sleep(5 * time.Second)
 
-    db, err := sql.Open("postgres", "postgres://USER:PASSWORD@localhost:5433/testdb?sslmode=disable")
+    db, err := sql.Open("postgres", "postgres://localhost:5433/testdb?sslmode=disable")
     if err != nil {
         s.T().Fatalf("failed to connect to database: %v", err)
     }
