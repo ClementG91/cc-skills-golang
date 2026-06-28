@@ -16,16 +16,16 @@ Hardcoded secrets, credentials, and sensitive data in source code is a major sec
 
 ```go
 const (
-    AWS_ACCESS_KEY    = "AKIAIOSFODNN7EXAMPLE"  // DON'T
-    AWS_SECRET_KEY    = "wJalrXUtnFEMI/K7MDENG"  // DON'T
-    DATABASE_PASSWORD = "SuperSecret123!"         // DON'T
-    JWT_SECRET        = "my-super-secret-jwt-key" // DON'T
+    AWS_ACCESS_KEY    = "<AWS_ACCESS_KEY_ID>"     // DON'T — never hardcode the real key
+    AWS_SECRET_KEY    = "<AWS_SECRET_ACCESS_KEY>" // DON'T — never hardcode the real secret
+    DATABASE_PASSWORD = "<DB_PASSWORD>"           // DON'T — never hardcode the real password
+    JWT_SECRET        = "<JWT_SECRET>"            // DON'T — never hardcode the real secret
 )
 
 var config = Config{
-    APIKey:  "abc123-xyz789-secret-key", // DON'T
-    Secret:  "my-super-secret-value",    // DON'T
-    DatabaseURL: "user:passw0rd!@localhost:5432/db", // DON'T
+    APIKey:      "<API_KEY>",            // DON'T
+    Secret:      "<SECRET_VALUE>",       // DON'T
+    DatabaseURL: "<DATABASE_URL>",       // DON'T — credentials belong in env/secret managers
 }
 ```
 
@@ -64,10 +64,10 @@ func LoadConfig() (*Config, error) {
 
 ```go
 // MySQL
-dsn := "user:Password123!@tcp(localhost:3306)/dbname" // DON'T
+dsn := "<DB_USER>:<DB_PASSWORD>@tcp(localhost:3306)/dbname" // DON'T — hardcoded credentials
 
 // PostgreSQL
-dsn := "user=postgres password=P@ssw0rd! dbname=mydb host=localhost" // DON'T
+dsn := "user=postgres password=<DB_PASSWORD> dbname=mydb host=localhost" // DON'T — hardcoded password
 ```
 
 **Good:**

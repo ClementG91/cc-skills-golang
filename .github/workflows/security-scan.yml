@@ -22,12 +22,11 @@ jobs:
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    # Report-only: this is a skills/documentation repo whose security and CI
-    # skills intentionally contain example secrets (AWS doc key, test:test
-    # connection strings) and by-design third-party-content behavior, which
-    # always trip W008/W011/W012. Keep the scan visible in logs without
-    # red-failing the build. Tighten or add ignores if real findings appear.
-    continue-on-error: true
+    # Gating: skill bodies and CI/security example assets have been reformulated
+    # to clear the W008/W011/W012 findings (placeholder secrets, passive
+    # third-party-content phrasing, pinned actions). The scan now fails the build
+    # on new findings. If a finding is a deliberate false positive, add a scoped
+    # ignore rather than reinstating continue-on-error.
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
