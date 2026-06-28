@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for Claude Code or similar AI coding agents, and for projects using Golang.
 metadata:
   author: samber
-  version: "1.3.1"
+  version: "1.3.2"
   openclaw:
     emoji: "🚀"
     homepage: https://github.com/samber/cc-skills-golang
@@ -244,10 +244,10 @@ The Claude Code GitHub App integration is configured via the `/install-github-ap
 
 ### GitHub Copilot
 
-Copy skills into your repo, then append [copilot-review-instructions.md](./assets/copilot-review-instructions.md) to `.github/copilot-instructions.md`:
+The skills are copied into the repo, then [copilot-review-instructions.md](./assets/copilot-review-instructions.md) is appended to `.github/copilot-instructions.md`. The skills CLI handles the copy:
 
 ```bash
-npx skills add https://github.com/samber/cc-skills-golang --agent github-copilot --skill '*' -y --copy
+npx skills add samber/cc-skills-golang --agent github-copilot --skill '*' -y --copy
 ln -s .agents .copilot
 ```
 

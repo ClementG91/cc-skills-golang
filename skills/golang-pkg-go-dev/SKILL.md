@@ -1,12 +1,12 @@
 ---
 name: golang-pkg-go-dev
-description: "Golang package and module documentation and exploration via `godig`, a pkg.go.dev API client (CLI + MCP server) — package docs, API references, symbols, code examples, available versions, importers (who imports a package), licenses, and known vulnerabilities. Read-only, no auth. Use for looking up any Go/Golang library's documentation, API signatures, usage examples, which versions exist, whether a dependency has CVEs, or who imports a package — prefer this over Context7 for any Go package or module. Triggers on: how to use a Go library, Go API docs, import usage, code examples, pkg.go.dev. Not for upgrading dependencies (→ See `samber/cc-skills-golang@golang-dependency-management` skill) or choosing a library (→ See `samber/cc-skills-golang@golang-popular-libraries` skill)."
+description: "Golang package and module documentation and exploration via `godig`, a pkg.go.dev API client (CLI + MCP server) — package docs, API references, symbols, code examples, available versions, importers (who imports a package), licenses, and known vulnerabilities. Read-only, no auth. Relevant for any Go/Golang library's documentation, API signatures, usage examples, which versions exist, whether a dependency has CVEs, or who imports a package — preferred over Context7 for any Go package or module. Applies when working with: how to use a Go library, Go API docs, import usage, code examples, pkg.go.dev. Not for upgrading dependencies (→ See `samber/cc-skills-golang@golang-dependency-management` skill) or choosing a library (→ See `samber/cc-skills-golang@golang-popular-libraries` skill)."
 user-invocable: true
 license: MIT
 compatibility: Designed for Claude Code or similar AI coding agents. Requires the godig CLI (go install github.com/samber/godig/cmd/godig@latest) or access to a godig MCP server, and internet access to reach the pkg.go.dev API.
 metadata:
   author: samber
-  version: "1.0.0"
+  version: "1.0.1"
   openclaw:
     emoji: "🔎"
     homepage: https://github.com/samber/cc-skills-golang
@@ -26,11 +26,11 @@ allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(golangci-lint:*) Bash(g
 
 **Dependencies:** `godig` — `go install github.com/samber/godig/cmd/godig@latest` (or use a registered godig MCP server / the hosted instance instead).
 
-`godig` queries the [pkg.go.dev](https://pkg.go.dev) API. Use it to answer questions about Go packages and modules: docs, symbols, versions, importers and vulnerabilities. It works as a CLI and as an MCP server. All operations are **read-only** and need no authentication.
+`godig` is a client for the [pkg.go.dev](https://pkg.go.dev) API. It surfaces Go package and module metadata — docs, symbols, versions, importers and vulnerabilities — already curated by pkg.go.dev. It works as a CLI and as an MCP server. All operations are **read-only** and need no authentication.
 
-## When to use this skill
+## When this skill applies
 
-Trigger on questions like:
+This skill is relevant for questions such as:
 
 - "What versions of github.com/samber/lo are available?"
 - "Does golang.org/x/text have known vulnerabilities?"
