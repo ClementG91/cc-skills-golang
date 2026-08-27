@@ -37,9 +37,9 @@ jobs:
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v10.0.1
 
       - name: Run Snyk Agent Scan
         # Skip on forks/clones without a SNYK_TOKEN so the scan does not hard-fail CI;

@@ -3,10 +3,10 @@ name: golang-continuous-integration
 description: "CI/CD pipeline configuration using GitHub Actions for Golang projects — testing, linting, SAST, security scanning, code coverage, Dependabot, Renovate, GoReleaser, code review automation, and release pipelines. Use when setting up or improving Go project CI, configuring GitHub Actions workflows, adding linters or security scanners, automating dependency updates, or adding quality gates."
 user-invocable: true
 license: MIT
-compatibility: Designed for Claude Code or similar AI coding agents, and for projects using Golang.
+compatibility: Designed for Claude Code, Codex or similar harness, and for projects using Golang.
 metadata:
   author: samber
-  version: "1.3.2"
+  version: "1.4.0"
   openclaw:
     emoji: "🚀"
     homepage: https://github.com/samber/cc-skills-golang
@@ -225,6 +225,8 @@ Add AI agents as PR reviewers alongside traditional static analysis. When loaded
 
 > **Cost note:** AI review agents run concurrently per PR. For cost control, remove jobs you don't need or raise the PR trigger filter to specific branches only.
 
+Each subsection below is a generated artifact targeting one specific reviewer — the linked asset file runs on a CI runner, not the developer's local harness, so its tool names and permission flags are deliberately literal rather than capability prose.
+
 ### Claude Code
 
 `.github/workflows/ai-review.yml` — see [claude-code-review.yml](./assets/claude-code-review.yml)
@@ -244,10 +246,10 @@ The Claude Code GitHub App integration is configured via the `/install-github-ap
 
 ### GitHub Copilot
 
-The skills are copied into the repo, then [copilot-review-instructions.md](./assets/copilot-review-instructions.md) is appended to `.github/copilot-instructions.md`. The skills CLI handles the copy:
+Copy skills into your repo, then append [copilot-review-instructions.md](./assets/copilot-review-instructions.md) to `.github/copilot-instructions.md`:
 
 ```bash
-npx skills add samber/cc-skills-golang --agent github-copilot --skill '*' -y --copy
+npx skills add https://github.com/samber/cc-skills-golang --agent github-copilot --skill '*' -y --copy
 ln -s .agents .copilot
 ```
 

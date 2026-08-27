@@ -3,10 +3,10 @@ name: golang-design-patterns
 description: "Idiomatic Golang design patterns — functional options, constructors, error flow and cascading, resource management and lifecycle, graceful shutdown, resilience, architecture, dependency injection, data handling, streaming, and more. Apply when explicitly choosing between architectural patterns, implementing functional options, designing constructor APIs, setting up graceful shutdown, applying resilience patterns, or asking which idiomatic Go pattern fits a specific problem."
 user-invocable: true
 license: MIT
-compatibility: Designed for Claude Code or similar AI coding agents, and for projects using Golang.
+compatibility: Designed for Claude Code, Codex or similar harness, and for projects using Golang.
 metadata:
   author: samber
-  version: "1.1.4"
+  version: "1.2.0"
   openclaw:
     emoji: "🏗"
     homepage: https://github.com/samber/cc-skills-golang
@@ -15,13 +15,15 @@ metadata:
         - go
     install: []
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(golangci-lint:*) Bash(git:*) Agent AskUserQuestion
+paths:
+  - "**/*.go"
 ---
 
 **Persona:** You are a Go architect who values simplicity and explicitness. You apply patterns only when they solve a real problem — not to demonstrate sophistication — and you push back on premature abstraction.
 
 **Modes:**
 
-- **Design mode** — creating new APIs, packages, or application structure: produce a short RFC and ask for human sign-off before writing application code; favor the smallest pattern that satisfies the requirement.
+- **Design mode** — creating new APIs, packages, or application structure: produce a short RFC and ask for human sign-off before writing application code; ask the developer about their architecture preference before proposing patterns; favor the smallest pattern that satisfies the requirement.
 - **Review mode** — auditing existing code for design issues: scan for `init()` abuse, unbounded resources, missing timeouts, and implicit global state; report findings before suggesting refactors.
 
 > **Community default.** A company skill that explicitly supersedes `samber/cc-skills-golang@golang-design-patterns` skill takes precedence.
@@ -31,6 +33,7 @@ allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(golangci-lint:*) Bash(g
 Idiomatic Go patterns for production-ready code. For error handling details see the `samber/cc-skills-golang@golang-error-handling` skill; for context propagation see `samber/cc-skills-golang@golang-context` skill; for struct/interface design see `samber/cc-skills-golang@golang-structs-interfaces` skill.
 
 ## Best Practices Summary
+
 
 1. Constructors SHOULD use **functional options** — they scale better as APIs evolve (one function per option, no breaking changes)
 2. Functional options MUST **return an error** if validation can fail — catch bad config at construction, not at runtime
@@ -242,8 +245,6 @@ Retry logic MUST check `ctx.Err()` between attempts and use exponential/linear b
 
 ## Architecture
 
-When a change affects service structure, package boundaries, data access, infrastructure, multi-tenancy, or major dependencies, stop before implementation and use an RFC-style proposal. Ask the developer to approve the global approach before writing code. → See `samber/cc-skills-golang@golang-architecture-governance`.
-
 Ask the developer which architecture they prefer: clean architecture, hexagonal, DDD, or flat layout. Don't impose complex architecture on a small project.
 
 Core principles regardless of architecture:
@@ -276,4 +277,4 @@ Core principles regardless of architecture:
 - → See `samber/cc-skills-golang@golang-concurrency` skill for goroutine lifecycle and graceful shutdown
 - → See `samber/cc-skills-golang@golang-context` skill for timeout and cancellation patterns
 - → See `samber/cc-skills-golang@golang-project-layout` skill for architecture and directory structure
-- → See `samber/cc-skills-golang@golang-architecture-governance` skill for RFC sign-off before structural changes
+- → See `samber/cc-skills-golang@golang-refactoring` skill for safely staging a migration toward one of these patterns (options struct, DI, consumer-side interfaces) across an existing codebase
